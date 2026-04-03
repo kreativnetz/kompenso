@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\TeacherAdminController;
+use App\Http\Controllers\Api\ThesisSessionAdminController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -19,4 +20,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/teachers', [TeacherAdminController::class, 'index']);
     Route::patch('/teachers/{teacher}', [TeacherAdminController::class, 'update']);
+
+    Route::get('/thesis-sessions', [ThesisSessionAdminController::class, 'index']);
+    Route::post('/thesis-sessions', [ThesisSessionAdminController::class, 'store']);
+    Route::patch('/thesis-sessions/{thesisSession}', [ThesisSessionAdminController::class, 'update']);
+    Route::delete('/thesis-sessions/{thesisSession}', [ThesisSessionAdminController::class, 'destroy']);
 });

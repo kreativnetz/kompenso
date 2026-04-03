@@ -36,4 +36,16 @@ export const api = {
   updateTeacher(id, body) {
     return request(`/teachers/${id}`, { method: 'PATCH', body })
   },
+  thesisSessions() {
+    return request('/thesis-sessions')
+  },
+  createThesisSession(body) {
+    return request('/thesis-sessions', { method: 'POST', body })
+  },
+  updateThesisSession(id, body) {
+    return request(`/thesis-sessions/${id}`, { method: 'PATCH', body })
+  },
+  deleteThesisSession(id) {
+    return request(`/thesis-sessions/${id}`, { method: 'DELETE' })
+  },
 }

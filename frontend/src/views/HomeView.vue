@@ -93,18 +93,30 @@ async function logout() {
           </a>
         </section>
 
-        <RouterLink
-          v-if="canManageTeachers"
-          to="/lehrpersonen"
-          class="mt-6 flex items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-ink-800 to-ink-900 p-5 text-white shadow-card transition hover:from-ink-900 hover:to-black focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
-        >
-          <div>
-            <p class="text-sm font-medium text-white/80">Verwaltung</p>
-            <p class="text-lg font-semibold">Lehrpersonen</p>
-            <p class="mt-1 text-sm text-white/70">Kacheln, Suche, Rollen</p>
-          </div>
-          <span class="text-2xl opacity-90" aria-hidden="true">→</span>
-        </RouterLink>
+        <div v-if="canManageTeachers" class="mt-6 grid gap-4 sm:grid-cols-2">
+          <RouterLink
+            to="/lehrpersonen"
+            class="flex items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-ink-800 to-ink-900 p-5 text-white shadow-card transition hover:from-ink-900 hover:to-black focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
+          >
+            <div>
+              <p class="text-sm font-medium text-white/80">Verwaltung</p>
+              <p class="text-lg font-semibold">Lehrpersonen</p>
+              <p class="mt-1 text-sm text-white/70">Kacheln, Suche, Rollen</p>
+            </div>
+            <span class="text-2xl opacity-90" aria-hidden="true">→</span>
+          </RouterLink>
+          <RouterLink
+            to="/zuordnungssessions"
+            class="flex items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-teal-800 to-emerald-900 p-5 text-white shadow-card transition hover:from-teal-900 hover:to-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
+          >
+            <div>
+              <p class="text-sm font-medium text-white/80">Verwaltung</p>
+              <p class="text-lg font-semibold">Zuordnungssessions</p>
+              <p class="mt-1 text-sm text-white/70">Phasen &amp; Fristen</p>
+            </div>
+            <span class="text-2xl opacity-90" aria-hidden="true">→</span>
+          </RouterLink>
+        </div>
       </template>
     </div>
   </div>
