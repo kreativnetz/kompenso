@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Ausfalltool</title>
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding:30px;
+  background:#f6f7fb;
+}
+
+h3 {
+  margin-bottom:10px;
+}
+
+table {
+  border-collapse: collapse;
+  margin-top:20px;
+  white-space:nowrap;
+  background:white;
+  box-shadow:0 10px 30px rgba(0,0,0,0.08);
+  border-radius:8px;
+  overflow:hidden;
+}
+
+#tableWrapper {
+  overflow-x:auto;
+  border-radius:10px;
+}
+
+td, th {
+  border:1px solid #e5e7eb;
+  padding:6px 8px;
+  text-align:center;
+}
+
+th {
+  background:#f9fafb;
+  font-weight:600;
+  cursor:pointer;
+}
+
+th:first-child, td:first-child {
+  position: sticky;
+  left: 0;
+  background:#ffffff;
+  z-index: 2;
+  font-weight:600;
+}
+
+th:first-child {
+  z-index: 3;
+  background:#f3f4f6;
+}
+
+th .dow {
+  font-size:11px;
+  font-weight:700;
+  color:#6b7280;
+  letter-spacing:0.5px;
+}
+
+th .date {
+  font-size:11px;
+  color:#9ca3af;
+}
+
+.week-sep {
+  border-right:3px solid #111827 !important;
+}
+
+td {
+  transition: all 0.12s ease;
+}
+
+td:hover {
+  background:#ffe4e6;
+}
+
+td.active {
+  background:#ef4444;
+  color:white;
+}
+
+td.no-lessons {
+  background:#ddd;
+}
+
+textarea {
+  width:100%;
+  height:150px;
+  margin-top:15px;
+  border-radius:8px;
+  border:1px solid #d1d5db;
+  padding:10px;
+  font-family: monospace;
+  background:white;
+}
+
+button {
+  margin-top:10px;
+  margin-right:10px;
+  padding:8px 14px;
+  border:none;
+  border-radius:6px;
+  background:#111827;
+  color:white;
+  font-weight:600;
+  cursor:pointer;
+  transition: all 0.15s ease;
+}
+
+button:hover {
+  background:#374151;
+}
+
+input[type="file"] {
+  margin-bottom:10px;
+}</style>
+</head>
+<body>
+
+<h3>CSV hochladen</h3>
+<input type="file" id="file">
+
+<div id="tableWrapper">
+  <div id="ui"></div>
+</div>
+
+<br />
+<button onclick="run()">Berechnen</button>&nbsp;<button onclick="copyOutput()">Kopieren</button>
+<button onclick="exportCSV()">Export CSV</button>
+
+<textarea id="output"></textarea>
+
+<script>
+const sections = {
+  1: {name:'BMGS Vollzeit', prefix:'VG', terms:1},
+  2: {name:'BMGS Teilzeit', prefix:'BG', terms:2},
+  3: {name:'FMS', prefix:'F', terms:3},
+  4: {name:'GMS', prefix:'G', terms:2},
+  5: {name:'WML', prefix:'W', terms:3},
+  6: {name:'IMS', prefix:'D', terms:2},
+  7: {name:'Fachmatura', prefix:'FM', terms:1},
+};
+
+let lessons = [];
+let holidays = {};
+let dates = [];
+let classes = [];
+let daysWithLessons = {};
+
+let isDragging = false;
+let dragMode = null; // true = aktivieren, false = deaktivieren
+
+
+document.body.addEventListener('mouseup', () => {
+  isDragging = false;
+});
+
+document.getElementById('file').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => init(reader.result);
+
+  // Many school CSV exports are not UTF-8
+  reader.readAsText(file, 'windows-1252');
+});
+
+function init(text) {
+  daysWithLessons = {};
+  lessons = [];
+  holidays = {};
+  dates = [];
+
+  const rows = text.trim().split('\n');
+
+  let firstYear = null;
+
+  rows.forEach((r,i) => {
+    const c = r.split(',');
+    const teacher = c[0];
+    const y = c[1], m = c[2], d = c[3];
+    const classRaw = c[6];
+    const minutes = parseInt(c[12]);
+
+    if (!classRaw) return;
+
+    if (i === 0) firstYear = parseInt(y.slice(-2));
+
+    const match = classRaw.match(/^([A-Z]+)(\d{2})/);
+    if (!match) return;
+
+    const classKey = match[1] + match[2];
+    const date = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+
+    lessons.push({ teacher, date, classKey, minutes });
+    daysWithLessons[date] = true;
+
+    if (!dates.includes(date)) dates.push(date);
+  });
+
+  dates = buildFullDateRange(dates);
+
+  classes = buildClasses(firstYear);
+
+  renderTable();
+}
+
+function buildClasses(startYear) {
+  let res = [];
+  Object.values(sections).forEach(s => {
+    for (let i=0;i<s.terms;i++) {
+      res.push(s.prefix + (startYear - i));
+    }
+  });
+  return res;
+}
+
+function buildFullDateRange(existingDates) {
+  const sorted = [...existingDates].sort();
+
+  const start = new Date(sorted[0]);
+  const end = new Date(sorted[sorted.length - 1]);
+
+  // normalize to midnight (critical!)
+  start.setHours(0,0,0,0);
+  end.setHours(0,0,0,0);
+
+  const result = [];
+  let d = new Date(start);
+
+  while (d.getTime() <= end.getTime()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+
+    result.push(`${y}-${m}-${day}`);
+
+    d.setDate(d.getDate() + 1);
+  }
+
+  return result;
+}
+
+function renderTable() {
+  const wrapper = document.getElementById('tableWrapper');
+  const scrollLeft = wrapper.scrollLeft;
+  const visibleDates = dates.filter(d => !isWeekend(d));
+
+  let html = '<table><tr><th>Klasse</th>';
+
+  visibleDates.forEach(d => {
+    const sep = isWeekEnd(d) ? 'week-sep' : '';
+    const noLessons = !daysWithLessons[d];
+    html += `<th class="${sep} ${noLessons ? 'no-lessons' : ''}" onclick="toggleAll('${d}')">
+      <div class="dow">${getWeekday(d)}</div>
+      <div class="date">${formatDate(d)}</div>
+    </th>`;
+  });
+  html += '</tr>';
+
+  classes.forEach(c => {
+    html += `<tr><th>${c}</th>`;
+    visibleDates.forEach(d => {
+      const sep = isWeekEnd(d) ? 'week-sep' : '';
+      const active = holidays[d]?.[c] ? 'active' : '';
+      const noLessons = !daysWithLessons[d];
+      html += `<td 
+        class="${active} ${sep} ${noLessons ? 'no-lessons' : ''}" 
+        onmousedown="startDrag('${d}','${c}', this)"
+        onmouseover="dragOver('${d}','${c}', this)"
+      ></td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</table>';
+  document.getElementById('ui').innerHTML = html;
+  wrapper.scrollLeft = scrollLeft;
+}
+
+function toggleAll(date) {
+  holidays[date] = holidays[date] || {};
+
+  const shouldActivateAll = !classes.every(classKey => holidays[date]?.[classKey] === true);
+
+  classes.forEach(classKey => {
+    holidays[date][classKey] = shouldActivateAll;
+  });
+
+  renderTable();
+}
+
+function run() {
+  const sum = {};
+
+  // 1. Alle Lehrpersonen mit 0 initialisieren
+  lessons.forEach(l => {
+    if (!sum.hasOwnProperty(l.teacher)) {
+      sum[l.teacher] = 0;
+    }
+  });
+
+  // 2. Ausfälle addieren
+  lessons.forEach(l => {
+    if (!holidays[l.date] || holidays[l.date][l.classKey] !== true) return;
+
+    const minutes = parseInt(l.minutes, 10);
+    if (!Number.isFinite(minutes) || minutes <= 0) return;
+
+    sum[l.teacher] += minutes;
+  });
+
+  // 3. Ausgabe
+  const out = Object.entries(sum)
+    .sort((a, b) => a[0].localeCompare(b[0], 'de-CH'))
+    .map(([teacher, minutes]) => `${teacher} ${minutes/45}`)
+    .join('\n');
+
+  document.getElementById('output').value = out;
+}
+
+function getWeekday(dateStr) {
+  const d = new Date(dateStr);
+  return ['SO','MO','DI','MI','DO','FR','SA'][d.getDay()];
+}
+
+function isWeekend(dateStr) {
+  const d = new Date(dateStr);
+  return d.getDay() === 0 || d.getDay() === 6;
+}
+
+function isWeekEnd(dateStr) {
+  const d = new Date(dateStr);
+  return d.getDay() === 5; // Friday → separator after
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  const day = String(d.getDate()).padStart(2,'0');
+  const month = String(d.getMonth()+1).padStart(2,'0');
+  return `${day}.${month}.`;
+}
+
+function copyOutput() {
+  const text = document.getElementById('output').value;
+  navigator.clipboard.writeText(text);
+}
+
+function startDrag(date, classKey, el) {
+  holidays[date] = holidays[date] || {};
+
+  const newState = !holidays[date][classKey];
+  dragMode = newState;
+  isDragging = true;
+
+  applyCell(date, classKey, el, newState);
+}
+
+function dragOver(date, classKey, el) {
+  if (!isDragging) return;
+  applyCell(date, classKey, el, dragMode);
+}
+
+function applyCell(date, classKey, el, state) {
+  holidays[date] = holidays[date] || {};
+  holidays[date][classKey] = state;
+
+  if (state) el.classList.add('active');
+  else el.classList.remove('active');
+}
+
+function exportCSV() {
+  const sum = {};
+
+  lessons.forEach(l => {
+    if (!sum[l.teacher]) sum[l.teacher] = 0;
+  });
+
+  lessons.forEach(l => {
+    if (!holidays[l.date] || holidays[l.date][l.classKey] !== true) return;
+    sum[l.teacher] += l.minutes;
+  });
+
+  let csv = 'sep=;\r\nLehrperson;Lektionen\r\n';
+
+  Object.entries(sum)
+    .sort((a,b) => a[0].localeCompare(b[0], 'de-CH'))
+    .forEach(([t,m]) => {
+      csv += `${t};${m/45}\r\n`;
+    });
+
+  // convert UTF-8 string → Windows-1252 bytes
+  const encoder = new TextEncoder(); // UTF-8
+  const utf8 = encoder.encode(csv);
+
+  const latin1 = new Uint8Array(utf8.length);
+  for (let i = 0; i < utf8.length; i++) {
+    latin1[i] = utf8[i]; // works for umlauts in 1252 range
+  }
+
+  const blob = new Blob([latin1], { type: 'text/csv;charset=windows-1252;' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ausfall.csv';
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>
