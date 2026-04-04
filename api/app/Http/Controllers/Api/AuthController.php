@@ -72,6 +72,7 @@ class AuthController extends Controller
             'abilities' => [
                 'manage_teachers' => $status >= 3,
                 'assign_admin' => $status === 4,
+                'assign_supervisions' => $status >= 3,
             ],
         ];
     }

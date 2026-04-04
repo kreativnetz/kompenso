@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -39,6 +40,11 @@ class Teacher extends Authenticatable
     public function isActive(): bool
     {
         return (int) $this->status !== 0;
+    }
+
+    public function supervisions(): HasMany
+    {
+        return $this->hasMany(Supervision::class, 'teacher');
     }
 
     public static function roleLabel(int $status): string

@@ -37,4 +37,9 @@ class Thesis extends Model
     {
         return $this->hasMany(Author::class, 'thesis');
     }
+
+    public function supervisions(): HasMany
+    {
+        return $this->hasMany(Supervision::class, 'thesis');
+    }
 }

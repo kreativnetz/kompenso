@@ -8,6 +8,7 @@ const TeachersAdminView = () => import('../views/TeachersAdminView.vue')
 const ThesisSessionsAdminView = () => import('../views/ThesisSessionsAdminView.vue')
 const SchoolyearsAdminView = () => import('../views/SchoolyearsAdminView.vue')
 const ThesisSubmitView = () => import('../views/ThesisSubmitView.vue')
+const ThesisTeacherBoardView = () => import('../views/ThesisTeacherBoardView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -48,6 +49,11 @@ const router = createRouter({
       component: ThesisSessionsAdminView,
       meta: { requiresManager: true },
     },
+    {
+      path: '/arbeiten',
+      name: 'thesis-teacher-board',
+      component: ThesisTeacherBoardView,
+    },
   ],
 })
 
@@ -63,6 +69,13 @@ router.beforeEach(async (to) => {
 
   if (!token) {
     return { name: 'login', query: { redirect: to.fullPath } }
+  }
+
+  if (to.name === 'thesis-teacher-board') {
+    const q = to.query.thesis_session_id
+    if (q == null || String(q).trim() === '') {
+      return { name: 'home', query: { board_missing: '1' } }
+    }
   }
 
   if (to.meta.requiresManager) {

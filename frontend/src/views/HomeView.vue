@@ -1,18 +1,40 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useRouter, RouterLink } from 'vue-router'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { api } from '../api'
 import { clearToken, getToken, setUser } from '../lib/auth'
 
+const route = useRoute()
 const router = useRouter()
 const teacher = ref(null)
 const loadError = ref('')
 const loading = ref(false)
 const tokenPresent = ref(!!getToken())
+const boardSessionsLoading = ref(false)
+const boardSessionsError = ref('')
+const boardSessions = ref(null)
 
 const isGuest = computed(() => !tokenPresent.value)
 
 const canManageTeachers = computed(() => teacher.value?.abilities?.manage_teachers === true)
+
+const boardMissingHint = computed(() => route.query.board_missing === '1')
+
+const currentAccessibleSession = computed(() => boardSessions.value?.current_accessible_session ?? null)
+
+const supervisedSessionsList = computed(() => boardSessions.value?.supervised_sessions ?? [])
+
+const supervisedSessionsOthers = computed(() => {
+  const curId = currentAccessibleSession.value?.id
+  if (curId == null) {
+    return supervisedSessionsList.value
+  }
+  return supervisedSessionsList.value.filter((s) => s.id !== curId)
+})
+
+function boardLink(sessionId) {
+  return { name: 'thesis-teacher-board', query: { thesis_session_id: String(sessionId) } }
+}
 
 onMounted(async () => {
   tokenPresent.value = !!getToken()
@@ -30,6 +52,16 @@ onMounted(async () => {
   const data = await res.json()
   teacher.value = data.teacher
   setUser(data.teacher)
+
+  boardSessionsLoading.value = true
+  boardSessionsError.value = ''
+  const sRes = await api.thesisSessionsSupervised()
+  boardSessionsLoading.value = false
+  if (sRes.ok) {
+    boardSessions.value = await sRes.json()
+  } else {
+    boardSessionsError.value = 'Zuordnungssessions konnten nicht geladen werden.'
+  }
 })
 
 function initials(t) {
@@ -100,6 +132,20 @@ async function logout() {
         <p v-else-if="loading" class="text-center text-sm text-ink-500">Laden …</p>
 
         <template v-else-if="teacher">
+          <p
+            v-if="boardMissingHint"
+            class="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200"
+          >
+            Bitte öffne die Themensliste über eine Session unten (aktuell oder vergangene Zuordnung).
+            <button
+              type="button"
+              class="ml-2 font-semibold text-amber-950 underline"
+              @click="router.replace({ query: {} })"
+            >
+              Hinweis schliessen
+            </button>
+          </p>
+
           <section
             class="overflow-hidden rounded-3xl bg-white/90 p-6 shadow-card ring-1 ring-ink-200/60"
           >
@@ -116,6 +162,72 @@ async function logout() {
               </div>
             </div>
           </section>
+
+          <section
+            v-if="boardSessionsLoading"
+            class="mt-6 rounded-3xl bg-white/80 px-5 py-4 text-sm text-ink-600 shadow-card ring-1 ring-ink-200/60"
+          >
+            Zuordnungssessions werden geladen …
+          </section>
+
+          <p
+            v-else-if="boardSessionsError"
+            class="mt-6 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-rose-200"
+          >
+            {{ boardSessionsError }}
+          </p>
+
+          <template v-else-if="boardSessions">
+            <section
+              v-if="currentAccessibleSession"
+              class="mt-6 overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-700 to-teal-800 p-5 text-white shadow-card ring-1 ring-emerald-900/20"
+            >
+              <p class="text-xs font-semibold uppercase tracking-wider text-white/80">Aktuelle Session</p>
+              <p class="mt-1 text-lg font-semibold">{{ currentAccessibleSession.name }}</p>
+              <p v-if="currentAccessibleSession.schoolyear_label" class="mt-1 text-sm text-white/85">
+                Schuljahr {{ currentAccessibleSession.schoolyear_label }}
+              </p>
+              <RouterLink
+                :to="boardLink(currentAccessibleSession.id)"
+                class="mt-4 inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50"
+              >
+                Zur Themensliste
+              </RouterLink>
+            </section>
+
+            <section
+              v-if="supervisedSessionsOthers.length"
+              class="mt-6 overflow-hidden rounded-3xl bg-white/90 p-6 shadow-card ring-1 ring-ink-200/60"
+            >
+              <h2 class="text-lg font-semibold text-ink-900">Deine Zuordnungssessions</h2>
+              <p class="mt-1 text-sm text-ink-600">
+                Sessions mit bestätigter Betreuung. Nach Abschluss siehst du nur noch deine Arbeiten.
+              </p>
+              <ul class="mt-4 space-y-3">
+                <li
+                  v-for="s in supervisedSessionsOthers"
+                  :key="s.id"
+                  class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-100 bg-ink-50/50 px-4 py-3"
+                >
+                  <div>
+                    <p class="font-medium text-ink-900">{{ s.name }}</p>
+                    <p class="text-sm text-ink-600">
+                      <span v-if="s.schoolyear_label">Schuljahr {{ s.schoolyear_label }}</span>
+                      <span v-if="s.is_past" class="ml-2 rounded-full bg-ink-200 px-2 py-0.5 text-xs text-ink-800">
+                        Abgeschlossen
+                      </span>
+                    </p>
+                  </div>
+                  <RouterLink
+                    :to="boardLink(s.id)"
+                    class="inline-flex rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+                  >
+                    Themensliste
+                  </RouterLink>
+                </li>
+              </ul>
+            </section>
+          </template>
 
           <div v-if="canManageTeachers" class="mt-6 grid gap-4 sm:grid-cols-2">
             <RouterLink

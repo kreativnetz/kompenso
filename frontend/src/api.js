@@ -71,4 +71,21 @@ export const api = {
   submitThesis(body) {
     return request('/public/thesis-submission', { method: 'POST', body })
   },
+  thesisSessionsSupervised() {
+    return request('/me/thesis-sessions/supervised')
+  },
+  thesisSessionTeacherBoard(sessionId) {
+    return request(`/thesis-sessions/${sessionId}/teacher-board`)
+  },
+  bookSupervision(sessionId, body) {
+    return request(`/thesis-sessions/${sessionId}/supervisions`, { method: 'POST', body })
+  },
+  withdrawSupervision(sessionId, supervisionId) {
+    return request(`/thesis-sessions/${sessionId}/supervisions/${supervisionId}/withdraw`, {
+      method: 'POST',
+    })
+  },
+  assignSupervision(sessionId, body) {
+    return request(`/thesis-sessions/${sessionId}/supervisions/assign`, { method: 'POST', body })
+  },
 }
