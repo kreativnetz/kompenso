@@ -140,7 +140,7 @@ class SchoolyearAdminController extends Controller
     }
 
     /**
-     * Erhöht pro Sektion den gespeicherten Abschlussjahrgang (zweistellig) um die Differenz der Kalenderjahre
+     * Erhöht pro Abteilung den gespeicherten Abschlussjahrgang (zweistellig) um die Differenz der Kalenderjahre
      * des Schuljahres-Starts (neu minus Quelle).
      *
      * @param  array<string, mixed>  $sections
@@ -221,27 +221,27 @@ class SchoolyearAdminController extends Controller
     {
         if ($sections === []) {
             throw ValidationException::withMessages([
-                'sections' => ['Mindestens eine Sektion erforderlich.'],
+                'sections' => ['Mindestens eine Abteilung erforderlich.'],
             ]);
         }
 
         foreach ($sections as $key => $data) {
             if (! is_string($key) || $key === '' || ! preg_match('/^[a-z0-9_]+$/', $key)) {
                 throw ValidationException::withMessages([
-                    'sections' => ['Ungültiger Sektionsschlüssel: nur Kleinbuchstaben, Ziffern und Unterstrich.'],
+                    'sections' => ['Ungültiger Abteilungsschlüssel: nur Kleinbuchstaben, Ziffern und Unterstrich.'],
                 ]);
             }
 
             if (! is_array($data)) {
                 throw ValidationException::withMessages([
-                    'sections' => ["Sektion „{$key}“: Daten müssen ein Objekt sein."],
+                    'sections' => ["Abteilung „{$key}“: Daten müssen ein Objekt sein."],
                 ]);
             }
 
             foreach (['name', 'prefix'] as $field) {
                 if (! isset($data[$field]) || ! is_string($data[$field]) || trim($data[$field]) === '') {
                     throw ValidationException::withMessages([
-                        'sections' => ["Sektion „{$key}“: „{$field}“ ist erforderlich."],
+                        'sections' => ["Abteilung „{$key}“: „{$field}“ ist erforderlich."],
                     ]);
                 }
             }
@@ -249,21 +249,21 @@ class SchoolyearAdminController extends Controller
             $terms = (int) ($data['terms'] ?? 0);
             if ($terms < 1 || $terms > 7) {
                 throw ValidationException::withMessages([
-                    'sections' => ["Sektion „{$key}“: „terms“ muss zwischen 1 und 7 liegen."],
+                    'sections' => ["Abteilung „{$key}“: „terms“ muss zwischen 1 und 7 liegen."],
                 ]);
             }
 
             $examYear = (int) ($data['exam_year'] ?? -1);
             if ($examYear < 0 || $examYear > 99) {
                 throw ValidationException::withMessages([
-                    'sections' => ["Sektion „{$key}“: „exam_year“ muss zwischen 0 und 99 liegen (z. B. 24)."],
+                    'sections' => ["Abteilung „{$key}“: „exam_year“ muss zwischen 0 und 99 liegen (z. B. 24)."],
                 ]);
             }
 
             $finishCount = (int) ($data['finish_class_count'] ?? 0);
             if ($finishCount < 1 || $finishCount > 26) {
                 throw ValidationException::withMessages([
-                    'sections' => ["Sektion „{$key}“: „finish_class_count“ muss zwischen 1 und 26 liegen."],
+                    'sections' => ["Abteilung „{$key}“: „finish_class_count“ muss zwischen 1 und 26 liegen."],
                 ]);
             }
         }

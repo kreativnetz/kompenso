@@ -71,6 +71,15 @@ export const api = {
   submitThesis(body) {
     return request('/public/thesis-submission', { method: 'POST', body })
   },
+  thesisForEdit(params) {
+    const q = new URLSearchParams()
+    q.set('edit_code', String(params.edit_code ?? '').trim())
+    q.set('thesis_session_id', String(params.thesis_session_id))
+    return request(`/public/thesis-submission/for-edit?${q.toString()}`)
+  },
+  updateThesisByCode(body) {
+    return request('/public/thesis-submission/by-code', { method: 'PATCH', body })
+  },
   thesisSessionsSupervised() {
     return request('/me/thesis-sessions/supervised')
   },

@@ -1,11 +1,16 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
+
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(true)
 const loadError = ref('')
 const context = ref(null)
+const isEditMode = ref(false)
+const storedEditCode = ref('')
 
 const sectionKey = ref('')
 const title = ref('')
@@ -18,6 +23,16 @@ const authors = ref([
 const submitting = ref(false)
 const submitError = ref('')
 const successPayload = ref(null)
+const successWasEdit = ref(false)
+
+const editParams = computed(() => {
+  const code = route.query.code
+  const sid = route.query.thesis_session_id
+  if (code == null || String(code).trim() === '' || sid == null || String(sid).trim() === '') {
+    return null
+  }
+  return { code: String(code).trim(), sessionId: String(sid).trim() }
+})
 
 const selectedSection = computed(() => {
   const sections = context.value?.sections || []
@@ -27,10 +42,14 @@ const selectedSection = computed(() => {
 const classOptions = computed(() => selectedSection.value?.class_codes || [])
 
 const canSubmit = computed(() => {
+  const sectionsOk = (context.value?.sections || []).length > 0
+  if (isEditMode.value) {
+    return context.value?.phase?.allows_edit_by_code === true && sectionsOk
+  }
   if (context.value?.phase?.allows_new_submission !== true) {
     return false
   }
-  return (context.value?.sections || []).length > 0
+  return sectionsOk
 })
 
 const phaseHint = computed(() => {
@@ -38,11 +57,15 @@ const phaseHint = computed(() => {
   if (!p) {
     return ''
   }
-  if (!p.allows_new_submission) {
+  if (isEditMode.value) {
+    if (!p.allows_edit_by_code) {
+      return 'Die Bearbeitung mit Code ist derzeit nicht möglich.'
+    }
+  } else if (!p.allows_new_submission) {
     return 'Die Themeneingabe für neue Arbeiten ist derzeit geschlossen.'
   }
   if (context.value?.thesis_session && !(context.value?.sections || []).length) {
-    return 'Für dieses Schuljahr sind noch keine Sektionen hinterlegt. Bitte wende dich an die Schule.'
+    return 'Für dieses Schuljahr sind noch keine Abteilungen hinterlegt. Bitte wende dich an die Schule.'
   }
   return ''
 })
@@ -61,7 +84,7 @@ function countFilledAuthors() {
   return n
 }
 
-/** Matrix-Zelle 0/1/2 für gewählte Sektion und aktuelle Lernenden-Anzahl, sonst null. */
+/** Matrix-Zelle 0/1/2 für gewählte Abteilung und aktuelle Lernenden-Anzahl, sonst null. */
 const authorRuleCodeForForm = computed(() => {
   const rules = context.value?.section_author_rules
   const sk = (sectionKey.value || '').trim().toLowerCase()
@@ -93,9 +116,65 @@ watch([authors, sectionKey], () => {
   submitError.value = ''
 }, { deep: true })
 
-onMounted(async () => {
+function emptyAuthor() {
+  return { first_name: '', last_name: '', class: '', email: '', handy: '' }
+}
+
+async function loadPage() {
   loading.value = true
   loadError.value = ''
+  successPayload.value = null
+  submitError.value = ''
+
+  const ep = editParams.value
+  if (ep) {
+    const res = await api.thesisForEdit({ edit_code: ep.code, thesis_session_id: ep.sessionId })
+    loading.value = false
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      loadError.value =
+        typeof data.message === 'string'
+          ? data.message
+          : 'Dieser Bearbeitungscode passt nicht zur aktuellen Ausschreibung oder ist unbekannt.'
+      context.value = null
+      isEditMode.value = false
+      storedEditCode.value = ''
+      return
+    }
+    const data = await res.json()
+    isEditMode.value = true
+    storedEditCode.value = data.thesis?.edit_code || ep.code
+    context.value = {
+      thesis_session: data.thesis_session,
+      sections: data.sections,
+      section_author_rules: data.section_author_rules,
+      phase: data.phase,
+      message: null,
+    }
+    sectionKey.value = data.thesis?.section_key || ''
+    title.value = data.thesis?.title || ''
+    description.value = data.thesis?.description || ''
+    const list = data.authors || []
+    authors.value =
+      list.length > 0
+        ? list.map((a) => ({
+            first_name: a.first_name || '',
+            last_name: a.last_name || '',
+            class: a.class || '',
+            email: a.email || '',
+            handy: a.handy || '',
+          }))
+        : [emptyAuthor()]
+    return
+  }
+
+  isEditMode.value = false
+  storedEditCode.value = ''
+  sectionKey.value = ''
+  title.value = ''
+  description.value = ''
+  authors.value = [emptyAuthor()]
+
   const res = await api.thesisSubmissionContext()
   loading.value = false
   if (!res.ok) {
@@ -106,7 +185,18 @@ onMounted(async () => {
   if (context.value?.message && !context.value?.thesis_session) {
     loadError.value = context.value.message
   }
+}
+
+onMounted(() => {
+  loadPage()
 })
+
+watch(
+  () => [String(route.query.code ?? ''), String(route.query.thesis_session_id ?? '')],
+  () => {
+    loadPage()
+  },
+)
 
 function addAuthor() {
   if (authors.value.length >= 3) {
@@ -124,11 +214,16 @@ function removeAuthor(index) {
 
 function resetForm() {
   successPayload.value = null
+  successWasEdit.value = false
+  submitError.value = ''
+  if (editParams.value) {
+    router.replace({ name: 'thesis-submit' })
+    return
+  }
   sectionKey.value = ''
   title.value = ''
   description.value = ''
-  authors.value = [{ first_name: '', last_name: '', class: '', email: '', handy: '' }]
-  submitError.value = ''
+  authors.value = [emptyAuthor()]
 }
 
 async function submit() {
@@ -142,7 +237,7 @@ async function submit() {
     return
   }
   if (!sectionKey.value) {
-    submitError.value = 'Bitte eine Sektion wählen.'
+    submitError.value = 'Bitte eine Abteilung wählen.'
     return
   }
   if (!title.value.trim()) {
@@ -183,13 +278,22 @@ async function submit() {
   }
 
   submitting.value = true
-  const res = await api.submitThesis({
-    thesis_session_id: context.value.thesis_session.id,
-    section_key: sectionKey.value,
-    title: title.value.trim(),
-    description: description.value.trim(),
-    authors: cleaned,
-  })
+  const res = isEditMode.value
+    ? await api.updateThesisByCode({
+        edit_code: storedEditCode.value,
+        thesis_session_id: context.value.thesis_session.id,
+        section_key: sectionKey.value,
+        title: title.value.trim(),
+        description: description.value.trim(),
+        authors: cleaned,
+      })
+    : await api.submitThesis({
+        thesis_session_id: context.value.thesis_session.id,
+        section_key: sectionKey.value,
+        title: title.value.trim(),
+        description: description.value.trim(),
+        authors: cleaned,
+      })
   submitting.value = false
 
   if (!res.ok) {
@@ -203,6 +307,7 @@ async function submit() {
   }
 
   const data = await res.json()
+  successWasEdit.value = isEditMode.value
   successPayload.value = data.thesis
 }
 </script>
@@ -217,12 +322,21 @@ async function submit() {
       <header class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-widest text-teal-700">Kompenso</p>
-          <h1 class="mt-1 text-2xl font-bold tracking-tight text-ink-900">Thema einreichen</h1>
+          <h1 class="mt-1 text-2xl font-bold tracking-tight text-ink-900">
+            {{ isEditMode ? 'Thema bearbeiten' : 'Thema einreichen' }}
+          </h1>
           <p v-if="context?.thesis_session" class="mt-2 text-sm text-ink-600">
             {{ context.thesis_session.name }}
             <span v-if="context.thesis_session.schoolyear_label" class="text-ink-500">
               · {{ context.thesis_session.schoolyear_label }}
             </span>
+          </p>
+          <p
+            v-if="isEditMode && context?.thesis_session && !successPayload"
+            class="mt-2 rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-950 ring-1 ring-teal-200/80"
+          >
+            Du bearbeitest eine <strong>bestehende Einreichung</strong>. Speichern überschreibt die bisherigen Angaben
+            (inkl. Lernende) für dieses Thema.
           </p>
         </div>
         <RouterLink
@@ -247,10 +361,16 @@ async function submit() {
         class="rounded-3xl bg-white/95 p-6 shadow-card ring-1 ring-ink-200/70"
         role="status"
       >
-        <h2 class="text-lg font-semibold text-ink-900">Thema eingereicht</h2>
-        <p class="mt-2 text-sm text-ink-600">
-          Merke dir den Bearbeitungscode. Er erlaubt Änderungen am Thema, solange die Bearbeitungsphase läuft
-          (bis kurz nach Ende der Einreichungsphase laut Ausschreibung).
+        <h2 class="text-lg font-semibold text-ink-900">
+          {{ successWasEdit ? 'Änderungen gespeichert' : 'Thema eingereicht' }}
+        </h2>
+        <p v-if="!successWasEdit" class="mt-2 text-sm text-ink-600">
+          Merke dir den Bearbeitungscode. Er erlaubt Änderungen am Thema, solange die Einreichungs- und
+          Bearbeitungsphase läuft (laut Ausschreibung).
+        </p>
+        <p v-else class="mt-2 text-sm text-ink-600">
+          Deine Anpassungen sind gespeichert. Der <strong>Bearbeitungscode bleibt gleich</strong>; du kannst ihn für
+          weitere Änderungen erneut verwenden, solange die Bearbeitung per Code möglich ist.
         </p>
         <p
           v-if="successPayload.requires_rector_approval"
@@ -294,13 +414,14 @@ async function submit() {
           v-if="sectionKey && showRectorApprovalHint"
           class="rounded-xl bg-sky-50 px-3 py-2 text-sm leading-snug text-sky-950 ring-1 ring-sky-200"
         >
-          <strong>Hinweis:</strong> Für diese Sektion und die gewählte Anzahl Lernende ist eine
+          <strong>Hinweis:</strong> Für diese Abteilung und die gewählte Anzahl Lernende ist eine
           <strong>Bewilligung durch den Rektor / die Rektorin</strong> vorgesehen. Dein Thema wird erst nach dieser
-          Freigabe für Lehrpersonen sichtbar. Du erhältst trotzdem einen Bearbeitungscode.
+          Freigabe für Lehrpersonen sichtbar.
+          <template v-if="!isEditMode"> Du erhältst trotzdem einen Bearbeitungscode.</template>
         </p>
 
         <div>
-          <label for="ts-section" class="mb-1.5 block text-sm font-medium text-ink-700">Sektion</label>
+          <label for="ts-section" class="mb-1.5 block text-sm font-medium text-ink-700">Abteilung</label>
           <select
             id="ts-section"
             v-model="sectionKey"
@@ -308,7 +429,7 @@ async function submit() {
             class="w-full rounded-xl border-0 bg-ink-50 px-4 py-3 text-sm text-ink-900 ring-1 ring-ink-200/80 focus:outline-none focus:ring-2 focus:ring-teal-500/40"
             :disabled="!canSubmit || !(context?.sections?.length)"
           >
-            <option disabled value="">Sektion wählen</option>
+            <option disabled value="">Abteilung wählen</option>
             <option v-for="s in context?.sections || []" :key="s.key" :value="s.key">
               {{ s.name }}
             </option>
@@ -346,18 +467,7 @@ async function submit() {
         </div>
 
         <div v-if="sectionKey" class="border-t border-ink-100 pt-4">
-          <div class="mb-3 flex items-center justify-between gap-2">
-            <h2 class="text-sm font-semibold text-ink-900">Lernende</h2>
-            <button
-              v-if="authors.length < 3"
-              type="button"
-              class="text-xs font-medium text-teal-700 hover:underline"
-              :disabled="!canSubmit"
-              @click="addAuthor"
-            >
-              + Weitere Person
-            </button>
-          </div>
+          <h2 class="mb-3 text-sm font-semibold text-ink-900">Lernende</h2>
 
           <div v-for="(a, idx) in authors" :key="idx" class="mb-4 rounded-2xl bg-ink-50/80 p-4 ring-1 ring-ink-100">
             <div class="mb-2 flex items-center justify-between">
@@ -433,6 +543,17 @@ async function submit() {
               </div>
             </div>
           </div>
+
+          <div v-if="authors.length < 3" class="mt-1">
+            <button
+              type="button"
+              class="text-xs font-medium text-teal-700 hover:underline"
+              :disabled="!canSubmit"
+              @click="addAuthor"
+            >
+              + Weitere Person
+            </button>
+          </div>
         </div>
 
         <p v-if="submitError" class="text-sm font-medium text-rose-600">{{ submitError }}</p>
@@ -449,7 +570,13 @@ async function submit() {
             :disabled="submitting || !canSubmit"
             class="rounded-xl bg-gradient-to-r from-teal-600 to-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:from-teal-500 hover:to-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {{ submitting ? 'Senden …' : 'Thema einreichen' }}
+            {{
+              submitting
+                ? 'Senden …'
+                : isEditMode
+                  ? 'Änderungen speichern'
+                  : 'Thema einreichen'
+            }}
           </button>
         </div>
       </form>

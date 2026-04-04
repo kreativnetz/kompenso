@@ -11,7 +11,7 @@ function current_school_year_number(int $startMonth = 8): int {
 // usage:
 $yearnumber = current_school_year_number(8);
 
-// Helper: generiert Klassenlabels (a–g, dynamisch) aus Sektion + $yearnumber
+// Helper: generiert Klassenlabels (a–g, dynamisch) aus Abteilung + $yearnumber
 function generate_classes_for_section(array $sections, $section_key, $yearnumber) {
   if (!isset($sections[$section_key])) return array();
   $prefix = $sections[$section_key]['prefix'];
@@ -250,7 +250,7 @@ function show_subjects(sectionKey) {
 
   sectionKey = parseInt(sectionKey, 10) || 0;
 
-  // Sichtbarkeit gemäss neuer Sektionslogik:
+  // Sichtbarkeit gemäss neuer Abteilungslogik:
   // 1 BMGS Vollzeit  -> subjects_g
   // 2 BMGS Teilzeit  -> subjects_g
   // 3 FMS            -> keine Fächer, keine Lehrpersonen
@@ -446,7 +446,7 @@ function confirmSingleVG() {
 				        $old_class = array('','','','');
 				    }
 
-				    // Klassenliste aus gewählter Sektion generieren (für Dropdowns)
+				    // Klassenliste aus gewählter Abteilung generieren (für Dropdowns)
 				    $classes = array();
 				    if (!empty($old_section)) {
 				        $classes = generate_classes_for_section($sections, $old_section, $yearnumber);

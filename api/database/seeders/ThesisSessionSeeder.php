@@ -17,7 +17,7 @@ class ThesisSessionSeeder extends Seeder
                 'ends_on' => '2026-07-31',
                 'sections' => [
                     'demo' => [
-                        'name' => 'Demo-Sektion',
+                        'name' => 'Demo-Abteilung',
                         'prefix' => 'D',
                         'terms' => 4,
                         'exam_year' => 25,

@@ -121,26 +121,26 @@ function validateSectionsList(list) {
     }
     seen.add(k)
     if (!String(row.name || '').trim()) {
-      return `Sektion „${k}“: Bezeichnung fehlt.`
+      return `Abteilung „${k}“: Bezeichnung fehlt.`
     }
     if (!String(row.prefix || '').trim()) {
-      return `Sektion „${k}“: Prefix fehlt.`
+      return `Abteilung „${k}“: Prefix fehlt.`
     }
     const terms = parseInt(row.terms, 10)
     if (!Number.isFinite(terms) || terms < 1 || terms > 7) {
-      return `Sektion „${k}“: Ausbildungsjahre 1–7.`
+      return `Abteilung „${k}“: Ausbildungsjahre 1–7.`
     }
     const ey = row.exam_year === '' || row.exam_year == null ? 0 : parseInt(row.exam_year, 10)
     if (!Number.isFinite(ey) || ey < 0 || ey > 99) {
-      return `Sektion „${k}“: Abschlussjahrgang 0–99 (z. B. 24).`
+      return `Abteilung „${k}“: Abschlussjahrgang 0–99 (z. B. 24).`
     }
     let fc = parseInt(row.finish_class_count, 10)
     if (!Number.isFinite(fc) || fc < 1 || fc > 26) {
-      return `Sektion „${k}“: Anzahl Abschlussklassen 1–26.`
+      return `Abteilung „${k}“: Anzahl Abschlussklassen 1–26.`
     }
   }
   if (!any) {
-    return 'Mindestens eine Sektion mit Schlüssel anlegen.'
+    return 'Mindestens eine Abteilung mit Schlüssel anlegen.'
   }
   return ''
 }
@@ -175,7 +175,7 @@ function emptyFormMeta() {
 
 const copySourceOptions = computed(() => schoolyears.value.filter((x) => x.id !== editingId.value))
 
-/** Neues Schuljahr: Sektionen kommen vom Server per Import, kein manuelles Formular */
+/** Neues Schuljahr: Abteilungen kommen vom Server per Import, kein manuelles Formular */
 const importingSectionsOnCreate = computed(
   () =>
     !editingId.value &&
@@ -339,7 +339,7 @@ async function submitForm() {
       return
     }
     if (sections === null || typeof sections !== 'object' || Array.isArray(sections)) {
-      showToast('error', 'Sektionen müssen ein JSON-Objekt sein.')
+      showToast('error', 'Abteilungen müssen ein JSON-Objekt sein.')
       return
     }
   } else if (hasCopy) {
@@ -525,7 +525,7 @@ onMounted(async () => {
             <div class="min-w-0">
               <h2 class="truncate text-sm font-semibold text-ink-900 sm:text-base">{{ row.label }}</h2>
               <p class="text-xs text-ink-600">
-                {{ row.starts_on }} – {{ row.ends_on }} · {{ sectionCount(row) }} Sektion(en)
+                {{ row.starts_on }} – {{ row.ends_on }} · {{ sectionCount(row) }} Abteilung(en)
               </p>
             </div>
             <div class="flex shrink-0 gap-1">
@@ -621,7 +621,7 @@ onMounted(async () => {
                     @change="onCopyFromPreviousChange"
                   />
                   <span class="text-xs text-ink-800">
-                    Sektionen aus chronologisch vorhergehendem Schuljahr übernehmen (nach Speichern anpassbar).
+                    Abteilungen aus chronologisch vorhergehendem Schuljahr übernehmen (nach Speichern anpassbar).
                   </span>
                 </label>
               </div>
@@ -645,7 +645,7 @@ onMounted(async () => {
 
             <div class="border-t border-ink-100 pt-2">
               <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-500">Sektionen</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-500">Abteilungen</p>
                 <div v-if="showSectionCards || showAdvancedJsonEditor" class="flex flex-wrap gap-1">
                   <button
                     v-if="showSectionCards"
@@ -653,7 +653,7 @@ onMounted(async () => {
                     class="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
                     @click="addSection"
                   >
-                    + Sektion
+                    + Abteilung
                   </button>
                   <button
                     v-if="!importingSectionsOnCreate"
@@ -671,12 +671,12 @@ onMounted(async () => {
                 class="mb-2 rounded-lg border border-teal-100 bg-teal-50/50 px-2.5 py-2 text-xs leading-snug text-ink-800"
               >
                 <template v-if="form.copy_from_schoolyear_id">
-                  Sektionen werden aus „{{ copySourceLabel }}“ übernommen.
+                  Abteilungen werden aus „{{ copySourceLabel }}“ übernommen.
                 </template>
                 <template v-else>
-                  Sektionen werden aus dem chronologisch vorhergehenden Schuljahr übernommen (falls vorhanden).
+                  Abteilungen werden aus dem chronologisch vorhergehenden Schuljahr übernommen (falls vorhanden).
                 </template>
-                Die <strong>Abschlussjahrgänge</strong> in den Sektionen werden beim Speichern automatisch um die
+                Die <strong>Abschlussjahrgänge</strong> in den Abteilungen werden beim Speichern automatisch um die
                 Differenz der Startjahre angepasst (z. B. 24 → 25 bei einem Jahr Abstand). Anschliessend unter
                 „Bearbeiten“ anpassbar.
               </p>
@@ -700,7 +700,7 @@ onMounted(async () => {
                   class="rounded-lg border border-ink-100 bg-ink-50/30 p-2.5"
                 >
                   <div class="mb-2 flex items-center justify-between gap-2">
-                    <span class="text-xs font-semibold text-ink-800">Sektion {{ idx + 1 }}</span>
+                    <span class="text-xs font-semibold text-ink-800">Abteilung {{ idx + 1 }}</span>
                     <button
                       type="button"
                       class="text-xs text-rose-700 hover:underline"
@@ -841,7 +841,7 @@ onMounted(async () => {
           aria-labelledby="sy-section-del-title"
           class="w-full max-w-sm rounded-xl border border-ink-200 bg-white p-4 shadow-lg"
         >
-          <p id="sy-section-del-title" class="text-sm font-semibold text-ink-900">Sektion entfernen?</p>
+          <p id="sy-section-del-title" class="text-sm font-semibold text-ink-900">Abteilung entfernen?</p>
           <p class="mt-1 text-xs text-ink-600">
             Bist du sicher, dass du die Abteilung <strong>{{ sectionDeleteLabel }}</strong> entfernen willst?
           </p>

@@ -18,7 +18,9 @@ Route::get('/health', function () {
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/public/thesis-submission/context', [PublicThesisSubmissionController::class, 'context']);
+Route::get('/public/thesis-submission/for-edit', [PublicThesisSubmissionController::class, 'thesisForEdit']);
 Route::post('/public/thesis-submission', [PublicThesisSubmissionController::class, 'store']);
+Route::patch('/public/thesis-submission/by-code', [PublicThesisSubmissionController::class, 'updateByCode']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);

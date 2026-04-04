@@ -14,6 +14,13 @@ const boardSessionsLoading = ref(false)
 const boardSessionsError = ref('')
 const boardSessions = ref(null)
 
+/** Öffentlicher Themeneingabe-Kontext (nur Gäste) */
+const submissionContext = ref(null)
+const submissionContextLoading = ref(false)
+const editCodeInput = ref('')
+const editCodeError = ref('')
+const editCodeBusy = ref(false)
+
 const isGuest = computed(() => !tokenPresent.value)
 
 const canManageTeachers = computed(() => teacher.value?.abilities?.manage_teachers === true)
@@ -32,6 +39,22 @@ const supervisedSessionsOthers = computed(() => {
   return supervisedSessionsList.value.filter((s) => s.id !== curId)
 })
 
+/** Phasen 1–3 laut ThesisSessionPhase (vor phase_4_at), nur wenn eine Session offen ist */
+const showLearnerEditCode = computed(() => {
+  if (!isGuest.value) {
+    return false
+  }
+  const ctx = submissionContext.value
+  if (!ctx?.thesis_session?.id) {
+    return false
+  }
+  const idx = ctx.phase?.phase_index
+  if (typeof idx === 'number') {
+    return idx >= 1 && idx <= 3
+  }
+  return ctx.phase?.allows_new_submission === true
+})
+
 function boardLink(sessionId) {
   return { name: 'thesis-teacher-board', query: { thesis_session_id: String(sessionId) } }
 }
@@ -44,9 +67,44 @@ function supervisionListLink(sessionId) {
   return { name: 'thesis-supervision-list', query: { thesis_session_id: String(sessionId) } }
 }
 
+async function goToEditWithCode() {
+  editCodeError.value = ''
+  const code = editCodeInput.value.trim()
+  const sid = submissionContext.value?.thesis_session?.id
+  if (!code) {
+    editCodeError.value = 'Bitte den Bearbeitungscode eingeben.'
+    return
+  }
+  if (sid == null) {
+    editCodeError.value = 'Aktuell ist keine Themeneingabe aktiv.'
+    return
+  }
+  editCodeBusy.value = true
+  const res = await api.thesisForEdit({ edit_code: code, thesis_session_id: sid })
+  editCodeBusy.value = false
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    editCodeError.value =
+      typeof data.message === 'string'
+        ? data.message
+        : 'Dieser Bearbeitungscode passt nicht zur aktuellen Ausschreibung oder ist unbekannt.'
+    return
+  }
+  await router.push({
+    name: 'thesis-submit',
+    query: { code, thesis_session_id: String(sid) },
+  })
+}
+
 onMounted(async () => {
   tokenPresent.value = !!getToken()
   if (!tokenPresent.value) {
+    submissionContextLoading.value = true
+    const sc = await api.thesisSubmissionContext()
+    submissionContextLoading.value = false
+    if (sc.ok) {
+      submissionContext.value = await sc.json()
+    }
     return
   }
   loading.value = true
@@ -115,6 +173,42 @@ async function logout() {
             Anmelden (Lehrpersonen)
           </RouterLink>
         </div>
+
+        <section
+          v-if="showLearnerEditCode"
+          class="mt-6 rounded-2xl border border-ink-200/80 bg-white/90 p-4 shadow-sm ring-1 ring-ink-100 sm:p-5"
+        >
+          <h2 class="text-sm font-semibold text-ink-900">Thema bearbeiten</h2>
+          <p class="mt-1 text-xs text-ink-600">
+            Mit dem Bearbeitungscode kannst du deine Einreichung anpassen (solange die Ausschreibung läuft).
+          </p>
+          <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div class="min-w-0 flex-1">
+              <label for="home-edit-code" class="mb-1 block text-xs font-medium text-ink-600">
+                Bearbeitungscode
+              </label>
+              <input
+                id="home-edit-code"
+                v-model="editCodeInput"
+                type="text"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                class="w-full rounded-xl border-0 bg-ink-50 px-3 py-2.5 font-mono text-sm text-ink-900 ring-1 ring-ink-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/35"
+                @keyup.enter="goToEditWithCode"
+              />
+            </div>
+            <button
+              type="button"
+              class="inline-flex shrink-0 items-center justify-center rounded-xl bg-ink-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-900 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="editCodeBusy || submissionContextLoading"
+              @click="goToEditWithCode"
+            >
+              {{ editCodeBusy ? 'Prüfen …' : 'Weiter' }}
+            </button>
+          </div>
+          <p v-if="editCodeError" class="mt-2 text-sm text-rose-600">{{ editCodeError }}</p>
+        </section>
 
         <p class="mt-8 text-center text-xs text-ink-500 sm:text-left">
           Für die Themeneingabe ist kein Login nötig. Nach dem Einreichen erhältst du einen Bearbeitungscode.
@@ -278,7 +372,7 @@ async function logout() {
               <div>
                 <p class="text-sm font-medium text-white/80">Verwaltung</p>
                 <p class="text-lg font-semibold">Schuljahre</p>
-                <p class="mt-1 text-sm text-white/70">Sektionen &amp; Zeiträume</p>
+                <p class="mt-1 text-sm text-white/70">Abteilung &amp; Zeiträume</p>
               </div>
               <span class="text-2xl opacity-90" aria-hidden="true">→</span>
             </RouterLink>

@@ -139,7 +139,7 @@ class ThesisSessionAdminController extends Controller
     }
 
     /**
-     * @param  list<string>|null  $keys  null = alle Sektionen; [] = keine; sonst nur diese (lowercase)
+     * @param  list<string>|null  $keys  null = alle Abteilungen; [] = keine; sonst nur diese (lowercase)
      */
     private function assertSubmissionSectionKeys(?array $keys, Schoolyear $schoolyear): void
     {
@@ -159,7 +159,7 @@ class ThesisSessionAdminController extends Controller
             }
             if (! isset($yearKeyLower[$lk])) {
                 throw ValidationException::withMessages([
-                    'submission_section_keys' => ["Unbekannte Sektion „{$k}“ (nicht im Schuljahr)."],
+                    'submission_section_keys' => ["Unbekannte Abteilung „{$k}“ (nicht im Schuljahr)."],
                 ]);
             }
         }
@@ -232,7 +232,7 @@ class ThesisSessionAdminController extends Controller
         foreach (array_keys($rules) as $sectionKey) {
             if (! in_array($sectionKey, $sectionKeys, true)) {
                 throw ValidationException::withMessages([
-                    'section_author_rules' => ["Unbekannte Sektion „{$sectionKey}“ (nicht in Schuljahr-Sektionen)."],
+                    'section_author_rules' => ["Unbekannte Abteilung „{$sectionKey}“ (nicht in Schuljahr-Abteilungen)."],
                 ]);
             }
             $row = $rules[$sectionKey];

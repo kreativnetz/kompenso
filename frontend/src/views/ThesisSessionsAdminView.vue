@@ -205,10 +205,10 @@ function submissionOpenMapFromRow(row, yearId) {
 function submissionSummaryText(row) {
   const raw = row?.submission_section_keys
   if (raw === undefined || raw === null) {
-    return 'Themeneingabe: alle Sektionen'
+    return 'Themeneingabe: alle Abteilungen'
   }
   if (Array.isArray(raw) && raw.length === 0) {
-    return 'Themeneingabe: keine Sektion'
+    return 'Themeneingabe: keine Abteilung'
   }
   return `Themeneingabe: ${raw.join(', ')}`
 }
@@ -536,7 +536,7 @@ onMounted(async () => {
       >
         Zuerst unter
         <RouterLink to="/schuljahre" class="font-semibold underline underline-offset-2">Schuljahre</RouterLink>
-        mindestens ein Schuljahr mit Sektionen anlegen.
+        mindestens ein Schuljahr mit Abteilungen anlegen.
       </p>
 
       <div
@@ -702,10 +702,10 @@ onMounted(async () => {
                 Themeneingabe (Lernende)
               </p>
               <p class="mb-2 text-xs leading-snug text-ink-600">
-                Nur angehakte Sektionen erscheinen in der öffentlichen Maske (während des Einschreibefensters).
+                Nur angehakte Abteilungen erscheinen in der öffentlichen Maske (während des Einschreibefensters).
               </p>
               <div v-if="sectionKeys.length === 0" class="rounded border border-ink-100 bg-ink-50/50 px-2 py-2 text-xs text-ink-600">
-                Keine Sektionen im gewählten Schuljahr.
+                Keine Abteilungen im gewählten Schuljahr.
               </div>
               <ul v-else class="space-y-1.5 rounded-lg border border-ink-100 bg-ink-50/40 px-2.5 py-2">
                 <li v-for="sk in sectionKeys" :key="'sub-' + sk" class="flex items-center gap-2">
@@ -727,18 +727,18 @@ onMounted(async () => {
                 Autorenregeln nur für die Themeneingabe (Lernende)
               </p>
               <p class="mb-2 text-xs leading-snug text-ink-600">
-                Gilt nicht für die Betreuung durch Lehrpersonen. Pro Sektion und Anzahl Lernende: 0 = Einreichen nicht
+                Gilt nicht für die Betreuung durch Lehrpersonen. Pro Abteilung und Anzahl Lernende: 0 = Einreichen nicht
                 erlaubt, 1 = Arbeit sofort aktiv (Thesis-Status „bewilligt“), 2 = bewilligungspflichtig (Thesis-Status
                 „ausstehend“ bis Rektorat auf der Themensliste freigibt oder ablehnt).
               </p>
               <div v-if="sectionKeys.length === 0" class="rounded border border-ink-100 bg-ink-50/50 px-2 py-2 text-xs text-ink-600">
-                Keine Sektionen im gewählten Schuljahr — bitte Schuljahr bearbeiten.
+                Keine Abteilungen im gewählten Schuljahr — bitte Schuljahr bearbeiten.
               </div>
               <div v-else class="overflow-x-auto rounded-lg border border-ink-100">
                 <table class="w-full min-w-[280px] border-collapse text-xs">
                   <thead>
                     <tr class="border-b border-ink-200 bg-ink-50/80">
-                      <th class="px-2 py-1.5 text-left font-semibold text-ink-800">Sektion</th>
+                      <th class="px-2 py-1.5 text-left font-semibold text-ink-800">Abteilung</th>
                       <th class="px-1 py-1.5 text-center font-semibold text-ink-800">1 Autor</th>
                       <th class="px-1 py-1.5 text-center font-semibold text-ink-800">2</th>
                       <th class="px-1 py-1.5 text-center font-semibold text-ink-800">3</th>
