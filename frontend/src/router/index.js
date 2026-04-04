@@ -6,6 +6,7 @@ const LoginView = () => import('../views/LoginView.vue')
 const HomeView = () => import('../views/HomeView.vue')
 const TeachersAdminView = () => import('../views/TeachersAdminView.vue')
 const ThesisSessionsAdminView = () => import('../views/ThesisSessionsAdminView.vue')
+const SchoolyearsAdminView = () => import('../views/SchoolyearsAdminView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -25,6 +26,12 @@ const router = createRouter({
       path: '/lehrpersonen',
       name: 'teachers',
       component: TeachersAdminView,
+      meta: { requiresManager: true },
+    },
+    {
+      path: '/schuljahre',
+      name: 'schoolyears',
+      component: SchoolyearsAdminView,
       meta: { requiresManager: true },
     },
     {

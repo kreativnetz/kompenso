@@ -39,8 +39,15 @@ const PHASE_META = [
   },
 ]
 
+const RULE_OPTIONS = [
+  { value: 0, label: 'Nein' },
+  { value: 1, label: 'Ja' },
+  { value: 2, label: 'Bewilligung' },
+]
+
 const currentUser = ref(getUser())
 const sessions = ref([])
+const schoolyears = ref([])
 const loading = ref(true)
 const loadError = ref('')
 const modalOpen = ref(false)
@@ -50,28 +57,49 @@ const toast = ref({ type: '', text: '' })
 const deleteTarget = ref(null)
 const deleting = ref(false)
 
-const form = ref(emptyForm())
+const form = ref(emptyFormShell())
 
-function emptyForm() {
-  const d = new Date()
-  const step = (hours) => {
-    const x = new Date(d)
-    x.setHours(x.getHours() + hours, 0, 0, 0)
-    return toDatetimeLocalValue(x)
-  }
+function emptyFormShell() {
   return {
+    schoolyear_id: '',
     name: '',
-    phase_1_at: step(0),
-    phase_2_at: step(24),
-    phase_3_at: step(48),
-    phase_4_at: step(72),
-    phase_5_at: step(96),
+    phase_1_at: '',
+    phase_2_at: '',
+    phase_3_at: '',
+    phase_4_at: '',
+    phase_5_at: '',
+    copy_defaults: false,
+    authorMatrix: {},
+    comp: emptyComp(),
+  }
+}
+
+function emptyComp() {
+  return {
+    haupt: { 1: '', 2: '', 3: '' },
+    gegen: { 1: '', 2: '', 3: '' },
   }
 }
 
 function toDatetimeLocalValue(date) {
   const pad = (n) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function emptyFormWithPhases() {
+  const d = new Date()
+  const step = (hours) => {
+    const x = new Date(d)
+    x.setHours(x.getHours() + hours, 0, 0, 0)
+    return toDatetimeLocalValue(x)
+  }
+  const shell = emptyFormShell()
+  shell.phase_1_at = step(0)
+  shell.phase_2_at = step(24)
+  shell.phase_3_at = step(48)
+  shell.phase_4_at = step(72)
+  shell.phase_5_at = step(96)
+  return shell
 }
 
 function parseLocalInput(isoLike) {
@@ -100,6 +128,112 @@ function formatPhaseDisplay(value) {
   return d ? fmt.format(d) : '—'
 }
 
+function schoolyearById(id) {
+  if (id === '' || id == null) {
+    return null
+  }
+  return schoolyears.value.find((y) => String(y.id) === String(id)) || null
+}
+
+function sectionKeysForYearId(yearId) {
+  const y = schoolyearById(yearId)
+  if (!y?.sections || typeof y.sections !== 'object') {
+    return []
+  }
+  return Object.keys(y.sections)
+}
+
+function buildMatrixFromRules(yearId, rules) {
+  const keys = sectionKeysForYearId(yearId)
+  const m = {}
+  for (const sk of keys) {
+    m[sk] = { 1: 0, 2: 0, 3: 0 }
+    const r = rules?.[sk]
+    if (r && typeof r === 'object') {
+      for (const n of [1, 2, 3]) {
+        const v = r[String(n)] ?? r[n]
+        if (v !== undefined && v !== '') {
+          m[sk][n] = Number(v)
+        }
+      }
+    }
+  }
+  return m
+}
+
+function mergeMatrixPreserve(prev, yearId) {
+  const keys = sectionKeysForYearId(yearId)
+  const m = {}
+  for (const sk of keys) {
+    m[sk] = { 1: 0, 2: 0, 3: 0 }
+    if (prev?.[sk]) {
+      for (const n of [1, 2, 3]) {
+        const v = prev[sk][n]
+        if (v !== undefined && v !== '') {
+          m[sk][n] = Number(v)
+        }
+      }
+    }
+  }
+  return m
+}
+
+function matrixToRules(matrix) {
+  const out = {}
+  for (const sk of Object.keys(matrix)) {
+    out[sk] = {
+      '1': Number(matrix[sk][1]) || 0,
+      '2': Number(matrix[sk][2]) || 0,
+      '3': Number(matrix[sk][3]) || 0,
+    }
+  }
+  return out
+}
+
+function compFromApi(c) {
+  const out = emptyComp()
+  if (!c || typeof c !== 'object') {
+    return out
+  }
+  for (const role of ['haupt', 'gegen']) {
+    if (!c[role] || typeof c[role] !== 'object') {
+      continue
+    }
+    for (const n of [1, 2, 3]) {
+      const raw = c[role][String(n)] ?? c[role][n]
+      if (raw !== undefined && raw !== null && raw !== '') {
+        out[role][n] = String(raw)
+      }
+    }
+  }
+  return out
+}
+
+function compToPayload(comp) {
+  const hasAny = ['haupt', 'gegen'].some((role) =>
+    [1, 2, 3].some((n) => comp[role][n] !== '' && comp[role][n] != null),
+  )
+  if (!hasAny) {
+    return {}
+  }
+  return {
+    haupt: {
+      '1': Number(comp.haupt[1]),
+      '2': Number(comp.haupt[2]),
+      '3': Number(comp.haupt[3]),
+    },
+    gegen: {
+      '1': Number(comp.gegen[1]),
+      '2': Number(comp.gegen[2]),
+      '3': Number(comp.gegen[3]),
+    },
+  }
+}
+
+function onSchoolyearChange() {
+  form.value.authorMatrix = mergeMatrixPreserve(form.value.authorMatrix, form.value.schoolyear_id)
+}
+
 let toastTimer
 function showToast(type, text) {
   clearTimeout(toastTimer)
@@ -118,40 +252,71 @@ async function refreshMe() {
   }
 }
 
-async function loadSessions() {
-  loading.value = true
-  loadError.value = ''
-  const res = await api.thesisSessions()
+async function loadSchoolyears() {
+  const res = await api.schoolyears()
   if (!res.ok) {
     if (res.status === 403) {
       await router.replace({ name: 'home' })
-      return
     }
+    return false
+  }
+  const data = await res.json()
+  schoolyears.value = data.schoolyears
+  return true
+}
+
+async function loadSessions() {
+  const res = await api.thesisSessions()
+  if (!res.ok) {
+    return false
+  }
+  const data = await res.json()
+  sessions.value = data.thesis_sessions
+  return true
+}
+
+async function loadAll() {
+  loading.value = true
+  loadError.value = ''
+  const okY = await loadSchoolyears()
+  if (!okY) {
+    loadError.value = 'Daten konnten nicht geladen werden.'
+    loading.value = false
+    return
+  }
+  const okS = await loadSessions()
+  if (!okS) {
     loadError.value = 'Sessions konnten nicht geladen werden.'
     loading.value = false
     return
   }
-  const data = await res.json()
-  sessions.value = data.thesis_sessions
   loading.value = false
 }
 
 function openCreate() {
   editingId.value = null
-  form.value = emptyForm()
+  const f = emptyFormWithPhases()
+  f.schoolyear_id = schoolyears.value[0]?.id ?? ''
+  f.authorMatrix = buildMatrixFromRules(f.schoolyear_id, {})
+  f.copy_defaults = false
+  form.value = f
   modalOpen.value = true
 }
 
 function openEdit(row) {
   editingId.value = row.id
-  form.value = {
-    name: row.name,
-    phase_1_at: row.phase_1_at || '',
-    phase_2_at: row.phase_2_at || '',
-    phase_3_at: row.phase_3_at || '',
-    phase_4_at: row.phase_4_at || '',
-    phase_5_at: row.phase_5_at || '',
-  }
+  const f = emptyFormShell()
+  f.schoolyear_id = row.schoolyear_id || ''
+  f.name = row.name
+  f.phase_1_at = row.phase_1_at || ''
+  f.phase_2_at = row.phase_2_at || ''
+  f.phase_3_at = row.phase_3_at || ''
+  f.phase_4_at = row.phase_4_at || ''
+  f.phase_5_at = row.phase_5_at || ''
+  f.copy_defaults = false
+  f.authorMatrix = buildMatrixFromRules(f.schoolyear_id, row.section_author_rules || {})
+  f.comp = compFromApi(row.compensation)
+  form.value = f
   modalOpen.value = true
 }
 
@@ -164,9 +329,45 @@ function closeModal() {
 
 const modalTitle = computed(() => (editingId.value ? 'Session bearbeiten' : 'Neue Session'))
 
+const sectionKeys = computed(() => sectionKeysForYearId(form.value.schoolyear_id))
+
 async function submitForm() {
+  if (!form.value.schoolyear_id) {
+    showToast('error', 'Bitte Schuljahr wählen.')
+    return
+  }
+
+  const sectionRulesPayload = matrixToRules(form.value.authorMatrix)
+  const compensationPayload = compToPayload(form.value.comp)
+
+  if (Object.keys(compensationPayload).length > 0) {
+    for (const role of ['haupt', 'gegen']) {
+      for (const n of [1, 2, 3]) {
+        const v = compensationPayload[role][n]
+        if (Number.isNaN(v)) {
+          showToast('error', 'Entschädigung: alle sechs Felder müssen gültige Zahlen sein.')
+          return
+        }
+      }
+    }
+  }
+
   saving.value = true
-  const body = { ...form.value }
+  const body = {
+    schoolyear_id: Number(form.value.schoolyear_id),
+    name: form.value.name,
+    phase_1_at: form.value.phase_1_at,
+    phase_2_at: form.value.phase_2_at,
+    phase_3_at: form.value.phase_3_at,
+    phase_4_at: form.value.phase_4_at,
+    phase_5_at: form.value.phase_5_at,
+    section_author_rules: sectionRulesPayload,
+    compensation: compensationPayload,
+  }
+  if (!editingId.value && form.value.copy_defaults) {
+    body.copy_defaults = true
+  }
+
   const res = editingId.value
     ? await api.updateThesisSession(editingId.value, body)
     : await api.createThesisSession(body)
@@ -191,7 +392,15 @@ async function submitForm() {
     }
   } else {
     sessions.value.push(row)
-    sessions.value.sort((a, b) => a.name.localeCompare(b.name, 'de'))
+    sessions.value.sort((a, b) => {
+      const la = a.schoolyear?.label || ''
+      const lb = b.schoolyear?.label || ''
+      const c = lb.localeCompare(la, 'de')
+      if (c !== 0) {
+        return c
+      }
+      return a.name.localeCompare(b.name, 'de')
+    })
   }
   modalOpen.value = false
   showToast('success', editingId.value ? 'Gespeichert.' : 'Session angelegt.')
@@ -229,7 +438,7 @@ function initials(u) {
 
 onMounted(async () => {
   await refreshMe()
-  await loadSessions()
+  await loadAll()
 })
 </script>
 
@@ -250,6 +459,7 @@ onMounted(async () => {
           <button
             type="button"
             class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 sm:text-sm"
+            :disabled="schoolyears.length === 0"
             @click="openCreate"
           >
             + Neu
@@ -270,6 +480,15 @@ onMounted(async () => {
     </header>
 
     <main class="mx-auto max-w-2xl px-3 py-4 sm:px-4">
+      <p
+        v-if="!loading && schoolyears.length === 0"
+        class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+      >
+        Zuerst unter
+        <RouterLink to="/schuljahre" class="font-semibold underline underline-offset-2">Schuljahre</RouterLink>
+        mindestens ein Schuljahr mit Sektionen anlegen.
+      </p>
+
       <div
         v-if="toast.text"
         role="status"
@@ -297,6 +516,7 @@ onMounted(async () => {
         <button
           type="button"
           class="mt-3 rounded-lg bg-ink-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black"
+          :disabled="schoolyears.length === 0"
           @click="openCreate"
         >
           Anlegen
@@ -310,7 +530,12 @@ onMounted(async () => {
           class="overflow-hidden rounded-lg border border-ink-200 bg-white shadow-sm"
         >
           <div class="flex items-center justify-between gap-2 border-b border-ink-100 bg-ink-50/50 px-3 py-2">
-            <h2 class="min-w-0 truncate text-sm font-semibold text-ink-900 sm:text-base">{{ row.name }}</h2>
+            <div class="min-w-0">
+              <p class="text-[11px] font-medium uppercase tracking-wide text-ink-500">
+                {{ row.schoolyear?.label || '—' }}
+              </p>
+              <h2 class="truncate text-sm font-semibold text-ink-900 sm:text-base">{{ row.name }}</h2>
+            </div>
             <div class="flex shrink-0 gap-1">
               <button
                 type="button"
@@ -358,7 +583,6 @@ onMounted(async () => {
       </div>
     </main>
 
-    <!-- Modal -->
     <Teleport to="body">
       <div
         v-if="modalOpen"
@@ -370,7 +594,7 @@ onMounted(async () => {
           role="dialog"
           aria-modal="true"
           :aria-labelledby="'session-modal-title'"
-          class="max-h-[min(95dvh,720px)] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-ink-200 bg-white shadow-xl sm:rounded-2xl"
+          class="max-h-[min(95dvh,880px)] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-ink-200 bg-white shadow-xl sm:rounded-2xl"
         >
           <div class="sticky top-0 flex items-center justify-between border-b border-ink-100 bg-white px-3 py-2">
             <h2 id="session-modal-title" class="text-sm font-semibold text-ink-900 sm:text-base">{{ modalTitle }}</h2>
@@ -386,6 +610,30 @@ onMounted(async () => {
 
           <form class="space-y-3 p-3 sm:p-4" @submit.prevent="submitForm">
             <div>
+              <label for="sess-sy" class="mb-0.5 block text-xs font-medium text-ink-600">Schuljahr</label>
+              <select
+                id="sess-sy"
+                v-model="form.schoolyear_id"
+                required
+                class="w-full rounded-lg border border-ink-200 bg-white px-2.5 py-2 text-sm text-ink-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                @change="onSchoolyearChange"
+              >
+                <option disabled value="">— wählen —</option>
+                <option v-for="y in schoolyears" :key="y.id" :value="y.id">{{ y.label }}</option>
+              </select>
+            </div>
+
+            <div v-if="!editingId" class="rounded-lg border border-ink-100 bg-ink-50/40 px-2.5 py-2">
+              <label class="flex cursor-pointer items-start gap-2">
+                <input v-model="form.copy_defaults" type="checkbox" class="mt-0.5" />
+                <span class="text-xs text-ink-800">
+                  Regeln und Entschädigung von der letzten Session dieses Schuljahrs übernehmen (sonst vom Vorjahr, falls
+                  vorhanden). Überschreibt die untenstehenden Felder beim Speichern.
+                </span>
+              </label>
+            </div>
+
+            <div>
               <label for="sess-name" class="mb-0.5 block text-xs font-medium text-ink-600">Name</label>
               <input
                 id="sess-name"
@@ -396,6 +644,80 @@ onMounted(async () => {
                 placeholder="z. B. IDPA/SA 2025/26"
                 class="w-full rounded-lg border border-ink-200 bg-white px-2.5 py-2 text-sm text-ink-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
+            </div>
+
+            <div class="border-t border-ink-100 pt-2">
+              <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500">
+                Autorenregeln (0 = nein, 1 = ja, 2 = Bewilligung)
+              </p>
+              <div v-if="sectionKeys.length === 0" class="rounded border border-ink-100 bg-ink-50/50 px-2 py-2 text-xs text-ink-600">
+                Keine Sektionen im gewählten Schuljahr — bitte Schuljahr bearbeiten.
+              </div>
+              <div v-else class="overflow-x-auto rounded-lg border border-ink-100">
+                <table class="w-full min-w-[280px] border-collapse text-xs">
+                  <thead>
+                    <tr class="border-b border-ink-200 bg-ink-50/80">
+                      <th class="px-2 py-1.5 text-left font-semibold text-ink-800">Sektion</th>
+                      <th class="px-1 py-1.5 text-center font-semibold text-ink-800">1 Autor</th>
+                      <th class="px-1 py-1.5 text-center font-semibold text-ink-800">2</th>
+                      <th class="px-1 py-1.5 text-center font-semibold text-ink-800">3</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="sk in sectionKeys" :key="sk" class="border-b border-ink-100 last:border-0">
+                      <td class="px-2 py-1 font-mono font-medium text-ink-900">{{ sk }}</td>
+                      <td v-for="n in [1, 2, 3]" :key="n" class="px-1 py-1">
+                        <select
+                          v-model.number="form.authorMatrix[sk][n]"
+                          class="w-full min-w-[4.5rem] rounded border border-ink-200 bg-white px-1 py-1 text-ink-900"
+                        >
+                          <option v-for="opt in RULE_OPTIONS" :key="opt.value" :value="opt.value">
+                            {{ opt.label }}
+                          </option>
+                        </select>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="border-t border-ink-100 pt-2">
+              <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500">
+                Entschädigung (leer lassen = nicht erfassen)
+              </p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <p class="mb-1 text-xs font-semibold text-ink-800">Hauptbetreuung</p>
+                  <div class="space-y-1">
+                    <label v-for="n in [1, 2, 3]" :key="'h' + n" class="flex items-center gap-2 text-xs text-ink-700">
+                      <span class="w-16 shrink-0">{{ n }} Autor(en)</span>
+                      <input
+                        v-model="form.comp.haupt[n]"
+                        type="text"
+                        inputmode="decimal"
+                        class="min-w-0 flex-1 rounded border border-ink-200 px-2 py-1 font-mono text-xs"
+                        placeholder="0.2"
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <p class="mb-1 text-xs font-semibold text-ink-800">Gegenbetreuung</p>
+                  <div class="space-y-1">
+                    <label v-for="n in [1, 2, 3]" :key="'g' + n" class="flex items-center gap-2 text-xs text-ink-700">
+                      <span class="w-16 shrink-0">{{ n }} Autor(en)</span>
+                      <input
+                        v-model="form.comp.gegen[n]"
+                        type="text"
+                        inputmode="decimal"
+                        class="min-w-0 flex-1 rounded border border-ink-200 px-2 py-1 font-mono text-xs"
+                        placeholder="0.07"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="border-t border-ink-100 pt-2">
@@ -450,7 +772,6 @@ onMounted(async () => {
       </div>
     </Teleport>
 
-    <!-- Delete confirm -->
     <Teleport to="body">
       <div
         v-if="deleteTarget"

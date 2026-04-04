@@ -70,27 +70,10 @@ async function logout() {
             <div class="min-w-0">
               <p class="text-xs font-medium uppercase tracking-wider text-ink-500">Angemeldet als</p>
               <p class="truncate text-lg font-semibold text-ink-900">{{ teacher.full_name }}</p>
-              <p class="font-mono text-sm text-emerald-700">{{ teacher.token }}</p>
+              <p class="font-mono text-sm text-emerald-700">{{ teacher.role }}</p>
             </div>
           </div>
 
-          <div class="mt-5 flex flex-wrap gap-2">
-            <span
-              class="inline-flex rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-800 ring-1 ring-ink-200/80"
-            >
-              {{ teacher.role }}
-            </span>
-            <span class="inline-flex rounded-full bg-ink-50 px-3 py-1 text-xs text-ink-600">
-              Status {{ teacher.status }}
-            </span>
-          </div>
-
-          <a
-            :href="'mailto:' + teacher.email"
-            class="mt-4 block truncate text-sm text-emerald-700 underline-offset-2 hover:underline"
-          >
-            {{ teacher.email }}
-          </a>
         </section>
 
         <div v-if="canManageTeachers" class="mt-6 grid gap-4 sm:grid-cols-2">
@@ -106,13 +89,24 @@ async function logout() {
             <span class="text-2xl opacity-90" aria-hidden="true">→</span>
           </RouterLink>
           <RouterLink
+            to="/schuljahre"
+            class="flex items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-indigo-800 to-violet-900 p-5 text-white shadow-card transition hover:from-indigo-900 hover:to-violet-950 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
+          >
+            <div>
+              <p class="text-sm font-medium text-white/80">Verwaltung</p>
+              <p class="text-lg font-semibold">Schuljahre</p>
+              <p class="mt-1 text-sm text-white/70">Sektionen &amp; Zeiträume</p>
+            </div>
+            <span class="text-2xl opacity-90" aria-hidden="true">→</span>
+          </RouterLink>
+          <RouterLink
             to="/zuordnungssessions"
             class="flex items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-teal-800 to-emerald-900 p-5 text-white shadow-card transition hover:from-teal-900 hover:to-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
           >
             <div>
               <p class="text-sm font-medium text-white/80">Verwaltung</p>
               <p class="text-lg font-semibold">Zuordnungssessions</p>
-              <p class="mt-1 text-sm text-white/70">Phasen &amp; Fristen</p>
+              <p class="mt-1 text-sm text-white/70">Phasen, Regeln, Entschädigung</p>
             </div>
             <span class="text-2xl opacity-90" aria-hidden="true">→</span>
           </RouterLink>

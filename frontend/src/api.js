@@ -36,6 +36,18 @@ export const api = {
   updateTeacher(id, body) {
     return request(`/teachers/${id}`, { method: 'PATCH', body })
   },
+  schoolyears() {
+    return request('/schoolyears')
+  },
+  createSchoolyear(body) {
+    return request('/schoolyears', { method: 'POST', body })
+  },
+  updateSchoolyear(id, body) {
+    return request(`/schoolyears/${id}`, { method: 'PATCH', body })
+  },
+  deleteSchoolyear(id) {
+    return request(`/schoolyears/${id}`, { method: 'DELETE' })
+  },
   thesisSessions() {
     return request('/thesis-sessions')
   },

@@ -1,6 +1,16 @@
--- Kompenso SQLite (Legacy-Tabellen + thesis_sessions)
+-- Kompenso SQLite (Legacy-Tabellen + schoolyears + thesis_sessions)
 
 PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS schoolyears (
+  id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  label VARCHAR(255) NOT NULL,
+  starts_on TEXT NOT NULL,
+  ends_on TEXT NOT NULL,
+  sections TEXT NOT NULL,
+  created_at TEXT,
+  updated_at TEXT
+);
 
 CREATE TABLE IF NOT EXISTS authors (
   id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -45,12 +55,15 @@ CREATE TABLE IF NOT EXISTS thesis (
 
 CREATE TABLE IF NOT EXISTS thesis_sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  schoolyear_id INTEGER REFERENCES schoolyears (id) ON DELETE RESTRICT ON UPDATE NO ACTION,
   name VARCHAR(255) NOT NULL,
   phase_1_at TEXT NOT NULL,
   phase_2_at TEXT NOT NULL,
   phase_3_at TEXT NOT NULL,
   phase_4_at TEXT NOT NULL,
   phase_5_at TEXT NOT NULL,
+  section_author_rules TEXT,
+  compensation TEXT,
   created_at TEXT,
   updated_at TEXT
 );
