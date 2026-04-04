@@ -46,7 +46,7 @@ class Teacher extends Authenticatable
         return match ($status) {
             0 => 'deaktiviert',
             1 => 'Lehrperson',
-            2 => 'Lehrperson (Sonderfunktion)',
+            2 => 'Lehrperson +',
             3 => 'Schulleitung',
             4 => 'Administrator',
             default => 'unbekannt',
