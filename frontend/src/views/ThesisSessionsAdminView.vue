@@ -71,6 +71,7 @@ function emptyFormShell() {
     copy_defaults: false,
     authorMatrix: {},
     comp: emptyComp(),
+    submissionSectionsOpen: {},
   }
 }
 
@@ -178,9 +179,47 @@ function mergeMatrixPreserve(prev, yearId) {
   return m
 }
 
-function matrixToRules(matrix) {
+function submissionOpenMapFromRow(row, yearId) {
+  const keys = sectionKeysForYearId(yearId)
   const out = {}
-  for (const sk of Object.keys(matrix)) {
+  const raw = row?.submission_section_keys
+  if (raw === undefined || raw === null || !Array.isArray(raw)) {
+    for (const k of keys) {
+      out[k] = true
+    }
+    return out
+  }
+  if (raw.length === 0) {
+    for (const k of keys) {
+      out[k] = false
+    }
+    return out
+  }
+  const set = new Set(raw.map((x) => String(x).toLowerCase()))
+  for (const k of keys) {
+    out[k] = set.has(String(k).toLowerCase())
+  }
+  return out
+}
+
+function submissionSummaryText(row) {
+  const raw = row?.submission_section_keys
+  if (raw === undefined || raw === null) {
+    return 'Themeneingabe: alle Sektionen'
+  }
+  if (Array.isArray(raw) && raw.length === 0) {
+    return 'Themeneingabe: keine Sektion'
+  }
+  return `Themeneingabe: ${raw.join(', ')}`
+}
+
+function matrixToRules(matrix, restrictToKeys = null) {
+  const keyList = restrictToKeys != null ? restrictToKeys : Object.keys(matrix)
+  const out = {}
+  for (const sk of keyList) {
+    if (!matrix[sk]) {
+      continue
+    }
     out[sk] = {
       '1': Number(matrix[sk][1]) || 0,
       '2': Number(matrix[sk][2]) || 0,
@@ -231,7 +270,14 @@ function compToPayload(comp) {
 }
 
 function onSchoolyearChange() {
+  const prevOpen = { ...form.value.submissionSectionsOpen }
   form.value.authorMatrix = mergeMatrixPreserve(form.value.authorMatrix, form.value.schoolyear_id)
+  const keys = sectionKeysForYearId(form.value.schoolyear_id)
+  const next = {}
+  for (const k of keys) {
+    next[k] = prevOpen[k] !== undefined ? prevOpen[k] : true
+  }
+  form.value.submissionSectionsOpen = next
 }
 
 let toastTimer
@@ -298,6 +344,7 @@ function openCreate() {
   const f = emptyFormWithPhases()
   f.schoolyear_id = schoolyears.value[0]?.id ?? ''
   f.authorMatrix = buildMatrixFromRules(f.schoolyear_id, {})
+  f.submissionSectionsOpen = submissionOpenMapFromRow(null, f.schoolyear_id)
   f.copy_defaults = false
   form.value = f
   modalOpen.value = true
@@ -315,6 +362,7 @@ function openEdit(row) {
   f.phase_5_at = row.phase_5_at || ''
   f.copy_defaults = false
   f.authorMatrix = buildMatrixFromRules(f.schoolyear_id, row.section_author_rules || {})
+  f.submissionSectionsOpen = submissionOpenMapFromRow(row, f.schoolyear_id)
   f.comp = compFromApi(row.compensation)
   form.value = f
   modalOpen.value = true
@@ -337,7 +385,8 @@ async function submitForm() {
     return
   }
 
-  const sectionRulesPayload = matrixToRules(form.value.authorMatrix)
+  const selectedSubmissionKeys = sectionKeys.value.filter((sk) => form.value.submissionSectionsOpen[sk])
+  const sectionRulesPayload = matrixToRules(form.value.authorMatrix, selectedSubmissionKeys)
   const compensationPayload = compToPayload(form.value.comp)
 
   if (Object.keys(compensationPayload).length > 0) {
@@ -363,6 +412,7 @@ async function submitForm() {
     phase_5_at: form.value.phase_5_at,
     section_author_rules: sectionRulesPayload,
     compensation: compensationPayload,
+    submission_section_keys: selectedSubmissionKeys.map((k) => String(k).toLowerCase()),
   }
   if (!editingId.value && form.value.copy_defaults) {
     body.copy_defaults = true
@@ -535,6 +585,7 @@ onMounted(async () => {
                 {{ row.schoolyear?.label || '—' }}
               </p>
               <h2 class="truncate text-sm font-semibold text-ink-900 sm:text-base">{{ row.name }}</h2>
+              <p class="mt-0.5 text-[11px] leading-snug text-ink-500">{{ submissionSummaryText(row) }}</p>
             </div>
             <div class="flex shrink-0 gap-1">
               <button
@@ -644,6 +695,31 @@ onMounted(async () => {
                 placeholder="z. B. IDPA/SA 2025/26"
                 class="w-full rounded-lg border border-ink-200 bg-white px-2.5 py-2 text-sm text-ink-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
+            </div>
+
+            <div class="border-t border-ink-100 pt-2">
+              <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500">
+                Themeneingabe (Lernende)
+              </p>
+              <p class="mb-2 text-xs leading-snug text-ink-600">
+                Nur angehakte Sektionen erscheinen in der öffentlichen Maske (während des Einschreibefensters).
+              </p>
+              <div v-if="sectionKeys.length === 0" class="rounded border border-ink-100 bg-ink-50/50 px-2 py-2 text-xs text-ink-600">
+                Keine Sektionen im gewählten Schuljahr.
+              </div>
+              <ul v-else class="space-y-1.5 rounded-lg border border-ink-100 bg-ink-50/40 px-2.5 py-2">
+                <li v-for="sk in sectionKeys" :key="'sub-' + sk" class="flex items-center gap-2">
+                  <input
+                    :id="'subsec-' + sk"
+                    v-model="form.submissionSectionsOpen[sk]"
+                    type="checkbox"
+                    class="rounded border-ink-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <label :for="'subsec-' + sk" class="cursor-pointer font-mono text-xs font-medium text-ink-900">
+                    {{ sk }}
+                  </label>
+                </li>
+              </ul>
             </div>
 
             <div class="border-t border-ink-100 pt-2">

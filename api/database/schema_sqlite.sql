@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS authors (
   id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   last_name VARCHAR(50) NOT NULL,
   first_name VARCHAR(50) NOT NULL,
-  class VARCHAR(5) NOT NULL,
+  class VARCHAR(16) NOT NULL,
   thesis INTEGER NOT NULL,
   email VARCHAR(50) NOT NULL,
   handy VARCHAR(20) NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS thesis (
   password VARCHAR(10) NOT NULL,
   session INTEGER NOT NULL,
   status INTEGER NOT NULL DEFAULT 1,
-  section CHAR(1) NOT NULL
+  section VARCHAR(32) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS thesis_sessions (
@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS thesis_sessions (
   phase_5_at TEXT NOT NULL,
   section_author_rules TEXT,
   compensation TEXT,
+  submission_section_keys TEXT,
   created_at TEXT,
   updated_at TEXT
 );

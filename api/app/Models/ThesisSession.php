@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Zuordnungssession (z. B. „IDPA/SA 2025/26“). Tabelle thesis_sessions.
@@ -22,6 +23,7 @@ class ThesisSession extends Model
         'phase_5_at',
         'section_author_rules',
         'compensation',
+        'submission_section_keys',
     ];
 
     protected $casts = [
@@ -32,10 +34,16 @@ class ThesisSession extends Model
         'phase_5_at' => 'datetime',
         'section_author_rules' => 'array',
         'compensation' => 'array',
+        'submission_section_keys' => 'array',
     ];
 
     public function schoolyear(): BelongsTo
     {
         return $this->belongsTo(Schoolyear::class);
+    }
+
+    public function theses(): HasMany
+    {
+        return $this->hasMany(Thesis::class, 'session');
     }
 }

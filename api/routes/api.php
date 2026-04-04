@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\PublicThesisSubmissionController;
 use App\Http\Controllers\Api\SchoolyearAdminController;
 use App\Http\Controllers\Api\TeacherAdminController;
 use App\Http\Controllers\Api\ThesisSessionAdminController;
@@ -14,6 +15,9 @@ Route::get('/health', function () {
 });
 
 Route::post('/login', [AuthController::class, 'login']);
+
+Route::get('/public/thesis-submission/context', [PublicThesisSubmissionController::class, 'context']);
+Route::post('/public/thesis-submission', [PublicThesisSubmissionController::class, 'store']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);

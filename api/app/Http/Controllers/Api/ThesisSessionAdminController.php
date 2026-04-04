@@ -33,21 +33,25 @@ class ThesisSessionAdminController extends Controller
         $this->ensureManager($request);
 
         $copyDefaults = $request->boolean('copy_defaults');
-        $data = $this->validatedSession($request, $copyDefaults);
-        unset($data['copy_defaults']);
+        $data = $this->validatedSession($request);
 
         if ($copyDefaults) {
             $defaults = $this->resolveDefaultRulesAndCompensation((int) $data['schoolyear_id']);
             $data['section_author_rules'] = $defaults['section_author_rules'];
             $data['compensation'] = $defaults['compensation'];
+            $data['submission_section_keys'] = $defaults['submission_section_keys'] ?? null;
         } else {
             $data['section_author_rules'] = $data['section_author_rules'] ?? [];
             $data['compensation'] = $data['compensation'] ?? [];
+            $data['submission_section_keys'] = $this->normalizeSubmissionSectionKeysForStorage(
+                $request->has('submission_section_keys') ? $request->input('submission_section_keys') : null
+            );
         }
 
+        unset($data['copy_defaults']);
+
         $schoolyear = Schoolyear::findOrFail((int) $data['schoolyear_id']);
-        $this->assertAuthorRulesMatchYear($data['section_author_rules'] ?? [], $schoolyear);
-        $this->assertCompensationShape($data['compensation'] ?? null);
+        $this->applySessionBusinessRules($data, $schoolyear);
 
         $session = ThesisSession::create($data);
         $session->load('schoolyear');
@@ -61,11 +65,18 @@ class ThesisSessionAdminController extends Controller
     {
         $this->ensureManager($request);
 
-        $data = $this->validatedSession($request, false);
-        unset($data['copy_defaults']);
+        $data = $this->validatedSession($request);
 
         $data['section_author_rules'] = $data['section_author_rules'] ?? [];
         $data['compensation'] = $data['compensation'] ?? [];
+        $data['submission_section_keys'] = $this->normalizeSubmissionSectionKeysForStorage(
+            $request->has('submission_section_keys') ? $request->input('submission_section_keys') : null
+        );
+
+        unset($data['copy_defaults']);
+
+        $schoolyear = Schoolyear::findOrFail((int) $data['schoolyear_id']);
+        $this->applySessionBusinessRules($data, $schoolyear);
 
         $thesisSession->update($data);
         $thesisSession->refresh();
@@ -91,9 +102,12 @@ class ThesisSessionAdminController extends Controller
         }
     }
 
-    private function validatedSession(Request $request, bool $skipRulesAndCompChecks = false): array
+    /**
+     * @return array<string, mixed>
+     */
+    private function validatedSession(Request $request): array
     {
-        $validated = $request->validate([
+        return $request->validate([
             'schoolyear_id' => ['required', 'integer', 'exists:schoolyears,id'],
             'name' => ['required', 'string', 'max:255'],
             'phase_1_at' => ['required', 'date'],
@@ -103,16 +117,107 @@ class ThesisSessionAdminController extends Controller
             'phase_5_at' => ['required', 'date'],
             'section_author_rules' => ['nullable', 'array'],
             'compensation' => ['nullable', 'array'],
+            'submission_section_keys' => ['sometimes', 'nullable', 'array'],
+            'submission_section_keys.*' => ['string', 'max:32'],
             'copy_defaults' => ['sometimes', 'boolean'],
         ]);
+    }
 
-        if (! $skipRulesAndCompChecks) {
-            $schoolyear = Schoolyear::findOrFail((int) $validated['schoolyear_id']);
-            $this->assertAuthorRulesMatchYear($validated['section_author_rules'] ?? [], $schoolyear);
-            $this->assertCompensationShape($validated['compensation'] ?? null);
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function applySessionBusinessRules(array &$data, Schoolyear $schoolyear): void
+    {
+        $this->assertSubmissionSectionKeys($data['submission_section_keys'] ?? null, $schoolyear);
+        $data['section_author_rules'] = $this->filterAuthorRulesToAllowedSections(
+            $data['section_author_rules'] ?? [],
+            $data['submission_section_keys'] ?? null,
+            $schoolyear,
+        );
+        $this->assertAuthorRulesMatchYear($data['section_author_rules'] ?? [], $schoolyear);
+        $this->assertCompensationShape($data['compensation'] ?? null);
+    }
+
+    /**
+     * @param  list<string>|null  $keys  null = alle Sektionen; [] = keine; sonst nur diese (lowercase)
+     */
+    private function assertSubmissionSectionKeys(?array $keys, Schoolyear $schoolyear): void
+    {
+        if ($keys === null) {
+            return;
         }
 
-        return $validated;
+        $yearKeyLower = [];
+        foreach (array_keys($schoolyear->sections ?? []) as $yk) {
+            $yearKeyLower[strtolower((string) $yk)] = true;
+        }
+
+        foreach ($keys as $k) {
+            $lk = strtolower(trim((string) $k));
+            if ($lk === '') {
+                continue;
+            }
+            if (! isset($yearKeyLower[$lk])) {
+                throw ValidationException::withMessages([
+                    'submission_section_keys' => ["Unbekannte Sektion „{$k}“ (nicht im Schuljahr)."],
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $rules
+     * @param  list<string>|null  $submissionKeysLower  null = keine Filterung
+     * @return array<string, mixed>
+     */
+    private function filterAuthorRulesToAllowedSections(array $rules, ?array $submissionKeysLower, Schoolyear $schoolyear): array
+    {
+        if ($submissionKeysLower === null) {
+            return $rules;
+        }
+
+        $allow = array_fill_keys($submissionKeysLower, true);
+        $out = [];
+        foreach ($rules as $sk => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $lk = strtolower((string) $sk);
+            if (isset($allow[$lk])) {
+                foreach (array_keys($schoolyear->sections ?? []) as $canonical) {
+                    if (strtolower((string) $canonical) === $lk) {
+                        $out[$canonical] = $row;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function normalizeSubmissionSectionKeysForStorage(mixed $raw): ?array
+    {
+        if ($raw === null) {
+            return null;
+        }
+        if (! is_array($raw)) {
+            throw ValidationException::withMessages([
+                'submission_section_keys' => ['Muss ein Array sein.'],
+            ]);
+        }
+        $out = [];
+        foreach ($raw as $k) {
+            $lk = strtolower(trim((string) $k));
+            if ($lk !== '') {
+                $out[$lk] = true;
+            }
+        }
+
+        return array_keys($out);
     }
 
     /**
@@ -182,7 +287,7 @@ class ThesisSessionAdminController extends Controller
     }
 
     /**
-     * @return array{section_author_rules: array, compensation: array}
+     * @return array{section_author_rules: array, compensation: array, submission_section_keys: ?array}
      */
     private function resolveDefaultRulesAndCompensation(int $schoolyearId): array
     {
@@ -197,6 +302,7 @@ class ThesisSessionAdminController extends Controller
             return [
                 'section_author_rules' => $latest->section_author_rules ?? [],
                 'compensation' => $latest->compensation ?? [],
+                'submission_section_keys' => $latest->submission_section_keys,
             ];
         }
 
@@ -214,6 +320,7 @@ class ThesisSessionAdminController extends Controller
                 return [
                     'section_author_rules' => $latestPrev->section_author_rules ?? [],
                     'compensation' => $latestPrev->compensation ?? [],
+                    'submission_section_keys' => $latestPrev->submission_section_keys,
                 ];
             }
         }
@@ -221,6 +328,7 @@ class ThesisSessionAdminController extends Controller
         return [
             'section_author_rules' => [],
             'compensation' => [],
+            'submission_section_keys' => null,
         ];
     }
 
@@ -243,6 +351,7 @@ class ThesisSessionAdminController extends Controller
             'phase_5_at' => $this->formatPhaseInput($session->phase_5_at),
             'section_author_rules' => $session->section_author_rules ?? [],
             'compensation' => $session->compensation ?? [],
+            'submission_section_keys' => $session->submission_section_keys,
         ];
     }
 

@@ -60,4 +60,15 @@ export const api = {
   deleteThesisSession(id) {
     return request(`/thesis-sessions/${id}`, { method: 'DELETE' })
   },
+  thesisSubmissionContext(params = {}) {
+    const q = new URLSearchParams()
+    if (params.thesis_session_id != null && params.thesis_session_id !== '') {
+      q.set('thesis_session_id', String(params.thesis_session_id))
+    }
+    const qs = q.toString()
+    return request(`/public/thesis-submission/context${qs ? `?${qs}` : ''}`)
+  },
+  submitThesis(body) {
+    return request('/public/thesis-submission', { method: 'POST', body })
+  },
 }

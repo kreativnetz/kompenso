@@ -7,6 +7,7 @@ const HomeView = () => import('../views/HomeView.vue')
 const TeachersAdminView = () => import('../views/TeachersAdminView.vue')
 const ThesisSessionsAdminView = () => import('../views/ThesisSessionsAdminView.vue')
 const SchoolyearsAdminView = () => import('../views/SchoolyearsAdminView.vue')
+const ThesisSubmitView = () => import('../views/ThesisSubmitView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -21,6 +22,13 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
+      meta: { public: true },
+    },
+    {
+      path: '/thema/einreichen',
+      name: 'thesis-submit',
+      component: ThesisSubmitView,
+      meta: { public: true },
     },
     {
       path: '/lehrpersonen',
