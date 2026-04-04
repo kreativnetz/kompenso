@@ -16,12 +16,12 @@ use Illuminate\Validation\ValidationException;
 class PublicThesisSubmissionController extends Controller
 {
     /**
-     * Phasenlogik (analog themeneingabe.php, vereinfacht auf thesis_sessions-Zeitstempel):
+     * Phasenlogik (abgestimmt mit {@see \App\Services\ThesisSessionPhase} / Stichtage phase_1_at … phase_5_at):
      *
-     * - Ab phase_1_at beginnt die Eingabephase.
-     * - Bis einschliesslich phase_2_at: neue Themen einreichen und bestehende per Bearbeitungscode ändern.
-     * - Nach phase_2_at bis einschliesslich phase_3_at: nur noch neue Themen (keine Bearbeitung mit Code).
-     * - Nach phase_3_at: keine öffentlichen Einreichungen mehr.
+     * - Ab phase_1_at bis vor phase_4_at: neue Themen einreichen (allowsNew; Phasenindex 1–3).
+     * - Bis einschliesslich phase_2_at: zusätzlich bestehende Arbeiten per Bearbeitungscode ändern (allowsEdit).
+     * - Nach phase_2_at bis vor phase_4_at: nur noch neue Themen (keine Bearbeitung mit Code).
+     * - Ab phase_4_at: keine öffentlichen Neueinreichungen mehr.
      *
      * Die öffentliche Themeneingabe ist nur verfügbar, wenn für eine Session das Einschreibefenster
      * für neue Arbeiten aktiv ist (allowsNew). Es wird keine Session ohne offenes Fenster ausgewählt.
@@ -241,10 +241,10 @@ class PublicThesisSubmissionController extends Controller
     {
         $p1 = $session->phase_1_at;
         $p2 = $session->phase_2_at;
-        $p3 = $session->phase_3_at;
+        $p4 = $session->phase_4_at;
 
         $allowsEdit = $now->greaterThanOrEqualTo($p1) && $now->lessThanOrEqualTo($p2);
-        $allowsNew = $now->greaterThanOrEqualTo($p1) && $now->lessThanOrEqualTo($p3);
+        $allowsNew = $now->greaterThanOrEqualTo($p1) && $now->lessThan($p4);
 
         return [
             'allowsNew' => $allowsNew,
