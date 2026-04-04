@@ -23,20 +23,6 @@ const actionError = ref('')
 const acting = ref(false)
 const expandedDescId = ref(null)
 
-const TEXT_PREVIEW_LEN = 60
-
-function descriptionPreview(text) {
-  if (text == null || String(text).trim() === '') {
-    return ''
-  }
-  const s = String(text)
-  return s.length <= TEXT_PREVIEW_LEN ? s : s.slice(0, TEXT_PREVIEW_LEN)
-}
-
-function descriptionHasMore(text) {
-  return text != null && String(text).length > TEXT_PREVIEW_LEN
-}
-
 const phaseHint = computed(() => {
   const idx = board.value?.phase?.index
   if (idx == null) {
@@ -301,64 +287,41 @@ watch(
                 <div
                   class="overflow-x-auto rounded-xl border border-ink-100 bg-ink-50/40 ring-1 ring-ink-100/80"
                 >
-                  <div class="min-w-[44rem]">
+                  <div class="min-w-0">
                     <div
-                      class="grid grid-cols-[minmax(7rem,1fr)_minmax(9rem,1.05fr)_minmax(5rem,6.5rem)_3rem_3rem] gap-1 border-b border-ink-200/80 bg-ink-100/60 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-600 sm:px-3 sm:text-xs"
+                      class="grid grid-cols-12 gap-x-1 gap-y-0 border-b border-ink-200/80 bg-ink-100/60 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-600 sm:px-3 sm:text-xs"
                     >
-                      <div>Thema</div>
-                      <div>Text</div>
-                      <div>
+                      <div class="col-span-6  ">Thema</div>
+                      <div class="col-span-4">
                         <span class="hidden sm:inline">Lernende</span>
                         <span class="sm:hidden">L</span>
                       </div>
-                      <div class="text-center">H</div>
-                      <div class="text-center">G</div>
+                      <div class="col-span-1 text-center">H</div>
+                      <div class="col-span-1 text-center">G</div>
                     </div>
 
                     <template v-for="(th, idx) in cl.theses" :key="th.id">
                     <div
-                      class="grid grid-cols-[minmax(7rem,1fr)_minmax(9rem,1.05fr)_minmax(5rem,6.5rem)_3rem_3rem] gap-1 border-b border-ink-100/90 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm"
+                      class="border-b border-ink-100/90"
                       :class="idx % 2 === 1 ? 'bg-white/70' : 'bg-white/40'"
                     >
-                      <div class="min-w-0">
-                        <p class="truncate font-medium leading-tight text-ink-900" :title="th.title">
+                    <div
+                      class="grid grid-cols-12 gap-x-1 gap-y-1 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm"
+                    >
+                      <div class="col-span-6 min-w-0">
+                        <p class="truncate font-medium leading-tight text-ink-900 cursor-pointer" :title="th.title" @click="toggleDesc(th.id)">
                           {{ th.title }}
                         </p>
                       </div>
 
-                      <div class="min-w-0 text-[10px] leading-snug text-ink-600 sm:text-xs">
-                        <template v-if="th.description">
-                          <p class="break-words">
-                            <span>{{ expandedDescId === th.id ? th.description : descriptionPreview(th.description) }}</span>
-                            <button
-                              v-if="descriptionHasMore(th.description)"
-                              type="button"
-                              class="ml-0.5 inline align-baseline font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
-                              :aria-expanded="expandedDescId === th.id"
-                              @click="toggleDesc(th.id)"
-                            >
-                              {{ expandedDescId === th.id ? '−' : '+' }}
-                            </button>
-                          </p>
-                        </template>
-                        <span v-else class="text-ink-400">—</span>
-                      </div>
-
-                      <div class="hidden min-w-0 truncate text-ink-600 sm:block" :title="authorsShort(th)">
+                      <div class="col-span-4 min-w-0 truncate text-ink-600" :title="authorsShort(th)">
                         {{ authorsShort(th) }}
-                      </div>
-                      <div class="truncate text-[10px] text-ink-600 sm:hidden">
-                        {{
-                          (th.authors?.length &&
-                            [th.authors[0].first_name, th.authors[0].last_name].filter(Boolean).join(' ')) ||
-                          '—'
-                        }}
                       </div>
 
                       <div
                         v-for="meta in slotTypes"
                         :key="meta.type"
-                        class="flex min-w-0 flex-col items-center justify-center gap-1 font-mono text-[11px] font-semibold tracking-tight text-ink-800 sm:text-xs"
+                        class="col-span-1 flex min-w-0 flex-col items-center justify-center gap-1 font-mono text-[11px] font-semibold tracking-tight text-ink-800 sm:text-xs"
                       >
                         <template v-if="slot(th, meta.type)">
                           <button
@@ -422,11 +385,18 @@ watch(
                     </div>
 
                     <div
+                      v-if="expandedDescId === th.id && th.description"
+                      class="border-ink-100/80 bg-ink-50/50 px-2 py-2 text-[10px] leading-relaxed break-words whitespace-pre-wrap text-ink-700 sm:px-3 sm:text-xs"
+                    >
+                      {{ th.description }}
+                    </div>
+
+                    <div
                       v-if="
                         board.phase.can_admin_assign &&
                         (assignOpen[`${th.id}-1`] || assignOpen[`${th.id}-2`])
                       "
-                      class="border-b border-ink-100/90 bg-violet-50/50 px-2 py-2 sm:px-3"
+                      class="border-t border-ink-100/90 bg-violet-50/50 px-2 py-2 sm:px-3"
                     >
                       <div v-if="assignOpen[`${th.id}-1`]" class="mb-2 flex flex-wrap items-end gap-2">
                         <span class="text-[10px] font-semibold text-violet-900 sm:text-xs">Hauptbetreuung</span>
@@ -468,6 +438,7 @@ watch(
                           Setzen
                         </button>
                       </div>
+                    </div>
                     </div>
                     </template>
                   </div>

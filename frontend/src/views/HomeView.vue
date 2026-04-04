@@ -157,7 +157,7 @@ async function logout() {
               </div>
               <div class="min-w-0">
                 <p class="text-xs font-medium uppercase tracking-wider text-ink-500">Angemeldet als</p>
-                <p class="truncate text-lg font-semibold text-ink-900">{{ teacher.full_name }}</p>
+                <p class="truncate text-lg font-semibold text-ink-900">{{ teacher.full_name }} ({{ teacher.token }})</p>
                 <p class="font-mono text-sm text-emerald-700">{{ teacher.role }}</p>
               </div>
             </div>
