@@ -23,6 +23,20 @@ const actionError = ref('')
 const acting = ref(false)
 const expandedDescId = ref(null)
 
+const TEXT_PREVIEW_LEN = 60
+
+function descriptionPreview(text) {
+  if (text == null || String(text).trim() === '') {
+    return ''
+  }
+  const s = String(text)
+  return s.length <= TEXT_PREVIEW_LEN ? s : s.slice(0, TEXT_PREVIEW_LEN)
+}
+
+function descriptionHasMore(text) {
+  return text != null && String(text).length > TEXT_PREVIEW_LEN
+}
+
 const phaseHint = computed(() => {
   const idx = board.value?.phase?.index
   if (idx == null) {
@@ -52,7 +66,7 @@ function authorsShort(th) {
     return '—'
   }
   const names = list.map((a) =>
-    [a.last_name, a.first_name].filter(Boolean).join(', ').trim(),
+    [a.first_name, a.last_name].filter(Boolean).join(' ').trim(),
   )
   if (names.length <= 2) {
     return names.join(', ')
@@ -83,6 +97,15 @@ function canWithdrawType(th, type) {
   const tid = teacher.value?.id
   return s != null && tid != null && s.teacher_id === tid
 }
+
+function canAdminAssignUI() {
+  return Boolean(board.value?.phase?.can_admin_assign && board.value?.teachers?.length)
+}
+
+const slotTypes = [
+  { type: 1, bookLabel: '+H', assignLabel: 'H*', clearLabel: 'H∅', bookTitle: 'Hauptbetreuung eintragen', withdrawTitle: 'Hauptbetreuung austragen', clearTitle: 'Hauptbetreuung löschen' },
+  { type: 2, bookLabel: '+G', assignLabel: 'G*', clearLabel: 'G∅', bookTitle: 'Gegenbetreuung eintragen', withdrawTitle: 'Gegenbetreuung austragen', clearTitle: 'Gegenbetreuung löschen' },
+]
 
 const assignOpen = ref({})
 const assignTeacherId = ref({})
@@ -278,144 +301,122 @@ watch(
                 <div
                   class="overflow-x-auto rounded-xl border border-ink-100 bg-ink-50/40 ring-1 ring-ink-100/80"
                 >
-                  <div class="min-w-[36rem]">
+                  <div class="min-w-[44rem]">
                     <div
-                      class="grid grid-cols-[minmax(8rem,1fr)_minmax(5rem,7rem)_2.75rem_2.75rem_minmax(4.5rem,auto)] gap-1 border-b border-ink-200/80 bg-ink-100/60 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-600 sm:px-3 sm:text-xs"
+                      class="grid grid-cols-[minmax(7rem,1fr)_minmax(9rem,1.05fr)_minmax(5rem,6.5rem)_3rem_3rem] gap-1 border-b border-ink-200/80 bg-ink-100/60 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-600 sm:px-3 sm:text-xs"
                     >
                       <div>Thema</div>
+                      <div>Text</div>
                       <div>
                         <span class="hidden sm:inline">Lernende</span>
                         <span class="sm:hidden">L</span>
                       </div>
                       <div class="text-center">H</div>
                       <div class="text-center">G</div>
-                      <div class="text-right">Aktion</div>
                     </div>
 
                     <template v-for="(th, idx) in cl.theses" :key="th.id">
                     <div
-                      class="grid grid-cols-[minmax(8rem,1fr)_minmax(5rem,7rem)_2.75rem_2.75rem_minmax(4.5rem,auto)] gap-1 border-b border-ink-100/90 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm"
+                      class="grid grid-cols-[minmax(7rem,1fr)_minmax(9rem,1.05fr)_minmax(5rem,6.5rem)_3rem_3rem] gap-1 border-b border-ink-100/90 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm"
                       :class="idx % 2 === 1 ? 'bg-white/70' : 'bg-white/40'"
                     >
                       <div class="min-w-0">
                         <p class="truncate font-medium leading-tight text-ink-900" :title="th.title">
                           {{ th.title }}
                         </p>
-                        <div class="mt-0.5 flex flex-wrap items-center gap-1">
-                          <button
-                            v-if="th.description"
-                            type="button"
-                            class="rounded px-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50 hover:underline sm:text-xs"
-                            @click="toggleDesc(th.id)"
-                          >
-                            {{ expandedDescId === th.id ? 'Text ▲' : 'Text ▼' }}
-                          </button>
-                        </div>
-                        <p
-                          v-if="expandedDescId === th.id && th.description"
-                          class="mt-1 max-h-24 overflow-y-auto text-[10px] leading-snug text-ink-600 sm:text-xs"
-                        >
-                          {{ th.description }}
-                        </p>
+                      </div>
+
+                      <div class="min-w-0 text-[10px] leading-snug text-ink-600 sm:text-xs">
+                        <template v-if="th.description">
+                          <p class="break-words">
+                            <span>{{ expandedDescId === th.id ? th.description : descriptionPreview(th.description) }}</span>
+                            <button
+                              v-if="descriptionHasMore(th.description)"
+                              type="button"
+                              class="ml-0.5 inline align-baseline font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+                              :aria-expanded="expandedDescId === th.id"
+                              @click="toggleDesc(th.id)"
+                            >
+                              {{ expandedDescId === th.id ? '−' : '+' }}
+                            </button>
+                          </p>
+                        </template>
+                        <span v-else class="text-ink-400">—</span>
                       </div>
 
                       <div class="hidden min-w-0 truncate text-ink-600 sm:block" :title="authorsShort(th)">
                         {{ authorsShort(th) }}
                       </div>
                       <div class="truncate text-[10px] text-ink-600 sm:hidden">
-                        {{ (th.authors?.length && th.authors[0].last_name) || '—' }}
+                        {{
+                          (th.authors?.length &&
+                            [th.authors[0].first_name, th.authors[0].last_name].filter(Boolean).join(' ')) ||
+                          '—'
+                        }}
                       </div>
 
                       <div
-                        class="flex flex-col items-center justify-center gap-0.5 font-mono text-[11px] font-semibold tracking-tight text-ink-800 sm:text-xs"
+                        v-for="meta in slotTypes"
+                        :key="meta.type"
+                        class="flex min-w-0 flex-col items-center justify-center gap-1 font-mono text-[11px] font-semibold tracking-tight text-ink-800 sm:text-xs"
                       >
-                        <span>{{ slot(th, 1)?.teacher_token || '—' }}</span>
-                      </div>
-                      <div
-                        class="flex flex-col items-center justify-center gap-0.5 font-mono text-[11px] font-semibold tracking-tight text-ink-800 sm:text-xs"
-                      >
-                        <span>{{ slot(th, 2)?.teacher_token || '—' }}</span>
-                      </div>
-
-                      <div class="flex flex-wrap items-center justify-end gap-0.5">
-                        <template v-if="board.phase.can_book">
+                        <template v-if="slot(th, meta.type)">
                           <button
-                            v-if="canBookType(th, 1)"
+                            v-if="canWithdrawType(th, meta.type)"
                             type="button"
                             :disabled="acting"
-                            class="rounded border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-40 sm:px-1.5"
-                            title="Hauptbetreuung"
-                            @click="book(th.id, 1)"
+                            class="max-w-full truncate rounded border border-transparent px-0.5 py-0 text-center hover:border-ink-200 hover:bg-ink-50 disabled:opacity-40"
+                            :title="meta.withdrawTitle"
+                            @click="withdraw(slot(th, meta.type).id)"
                           >
-                            +H
+                            {{ slot(th, meta.type).teacher_token }}
                           </button>
-                          <button
-                            v-if="canWithdrawType(th, 1)"
-                            type="button"
-                            :disabled="acting"
-                            class="rounded border border-ink-200 bg-white px-1 py-0.5 text-[10px] font-semibold text-ink-800 hover:bg-ink-50 disabled:opacity-40 sm:px-1.5"
-                            title="Hauptbetreuung austragen"
-                            @click="withdraw(slot(th, 1).id)"
+                          <span
+                            v-else
+                            class="max-w-full truncate text-center"
+                            :title="slot(th, meta.type).teacher_token"
                           >
-                            −H
-                          </button>
+                            {{ slot(th, meta.type).teacher_token }}
+                          </span>
                           <button
-                            v-if="canBookType(th, 2)"
+                            v-if="canAdminAssignUI()"
                             type="button"
+                            class="rounded border border-rose-200 bg-rose-50 px-1 py-0.5 text-[9px] font-semibold leading-none text-rose-900 hover:bg-rose-100 sm:text-[10px]"
                             :disabled="acting"
-                            class="rounded border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-40 sm:px-1.5"
-                            title="Gegenbetreuung"
-                            @click="book(th.id, 2)"
+                            :title="meta.clearTitle"
+                            @click="clearSlotAdmin(th.id, meta.type)"
                           >
-                            +G
-                          </button>
-                          <button
-                            v-if="canWithdrawType(th, 2)"
-                            type="button"
-                            :disabled="acting"
-                            class="rounded border border-ink-200 bg-white px-1 py-0.5 text-[10px] font-semibold text-ink-800 hover:bg-ink-50 disabled:opacity-40 sm:px-1.5"
-                            title="Gegenbetreuung austragen"
-                            @click="withdraw(slot(th, 2).id)"
-                          >
-                            −G
+                            {{ meta.clearLabel }}
                           </button>
                         </template>
-
-                        <template v-if="board.phase.can_admin_assign && board.teachers?.length">
-                          <button
-                            type="button"
-                            class="rounded border border-violet-200 bg-violet-50 px-1 py-0.5 text-[10px] font-semibold text-violet-900 hover:bg-violet-100 sm:px-1.5"
-                            @click="toggleAssign(`${th.id}-1`)"
-                          >
-                            H*
-                          </button>
-                          <button
-                            type="button"
-                            class="rounded border border-violet-200 bg-violet-50 px-1 py-0.5 text-[10px] font-semibold text-violet-900 hover:bg-violet-100 sm:px-1.5"
-                            @click="toggleAssign(`${th.id}-2`)"
-                          >
-                            G*
-                          </button>
-                          <button
-                            v-if="slot(th, 1)"
-                            type="button"
-                            class="rounded border border-rose-200 bg-rose-50 px-1 py-0.5 text-[10px] font-semibold text-rose-900 hover:bg-rose-100 sm:px-1.5"
-                            :disabled="acting"
-                            title="Hauptbetreuung löschen"
-                            @click="clearSlotAdmin(th.id, 1)"
-                          >
-                            H∅
-                          </button>
-                          <button
-                            v-if="slot(th, 2)"
-                            type="button"
-                            class="rounded border border-rose-200 bg-rose-50 px-1 py-0.5 text-[10px] font-semibold text-rose-900 hover:bg-rose-100 sm:px-1.5"
-                            :disabled="acting"
-                            title="Gegenbetreuung löschen"
-                            @click="clearSlotAdmin(th.id, 2)"
-                          >
-                            G∅
-                          </button>
+                        <template v-else>
+                          <div class="flex flex-col items-center gap-0.5">
+                            <button
+                              v-if="canBookType(th, meta.type)"
+                              type="button"
+                              :disabled="acting"
+                              class="rounded border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-40"
+                              :title="meta.bookTitle"
+                              @click="book(th.id, meta.type)"
+                            >
+                              {{ meta.bookLabel }}
+                            </button>
+                            <button
+                              v-if="canAdminAssignUI()"
+                              type="button"
+                              class="rounded border border-violet-200 bg-violet-50 px-1 py-0.5 text-[9px] font-semibold leading-none text-violet-900 hover:bg-violet-100 sm:text-[10px]"
+                              :title="`${meta.assignLabel}: Lehrperson zuweisen`"
+                              @click="toggleAssign(`${th.id}-${meta.type}`)"
+                            >
+                              {{ meta.assignLabel }}
+                            </button>
+                            <span
+                              v-if="!canBookType(th, meta.type) && !canAdminAssignUI()"
+                              class="text-ink-400"
+                            >
+                              —
+                            </span>
+                          </div>
                         </template>
                       </div>
                     </div>

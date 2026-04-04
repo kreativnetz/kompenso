@@ -167,7 +167,7 @@ async function logout() {
             v-if="boardSessionsLoading"
             class="mt-6 rounded-3xl bg-white/80 px-5 py-4 text-sm text-ink-600 shadow-card ring-1 ring-ink-200/60"
           >
-            Zuordnungssessions werden geladen …
+            Sessions werden geladen …
           </section>
 
           <p
@@ -258,7 +258,7 @@ async function logout() {
             >
               <div>
                 <p class="text-sm font-medium text-white/80">Verwaltung</p>
-                <p class="text-lg font-semibold">Zuordnungssessions</p>
+                <p class="text-lg font-semibold">Sessions</p>
                 <p class="mt-1 text-sm text-white/70">Phasen, Regeln, Entschädigung</p>
               </div>
               <span class="text-2xl opacity-90" aria-hidden="true">→</span>

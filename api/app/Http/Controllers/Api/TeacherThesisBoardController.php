@@ -118,7 +118,7 @@ class TeacherThesisBoardController extends Controller
 
         $canBook = ThesisSessionPhase::allowsBooking($thesisSession, $now);
         $canAdminAssign = (int) $teacher->status >= 3
-            && ThesisSessionPhase::allowsAdminAssignment($thesisSession, $now);
+            && ThesisSessionPhase::allowsTeacherBoard($thesisSession, $now);
 
         $teachersForAssign = null;
         if ($canAdminAssign) {
@@ -240,9 +240,9 @@ class TeacherThesisBoardController extends Controller
             abort(403);
         }
 
-        if (! ThesisSessionPhase::allowsAdminAssignment($thesisSession, $now)) {
+        if (! ThesisSessionPhase::allowsTeacherBoard($thesisSession, $now)) {
             throw ValidationException::withMessages([
-                'phase' => ['Zuweisung nur ab Phase 4.'],
+                'phase' => ['Zuweisung ist derzeit nicht möglich.'],
             ]);
         }
 
