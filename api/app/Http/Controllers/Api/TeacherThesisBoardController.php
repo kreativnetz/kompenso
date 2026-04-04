@@ -179,32 +179,21 @@ class TeacherThesisBoardController extends Controller
                 ->lockForUpdate()
                 ->get();
 
-            $alreadyMine = $locked->contains(
-                fn (Supervision $s) => (int) $s->teacher === (int) $teacher->id
-                    && in_array((int) $s->status, [1, 2], true)
+            $occupied = $locked->contains(
+                fn (Supervision $s) => in_array((int) $s->status, [1, 2], true)
             );
-            if ($alreadyMine) {
+            if ($occupied) {
                 throw ValidationException::withMessages([
-                    'type' => ['Du bist für diese Rolle bereits eingetragen.'],
+                    'type' => ['Diese Rolle ist bereits besetzt.'],
                 ]);
             }
-
-            $hasConfirmed = $locked->contains(fn (Supervision $s) => (int) $s->status === 2);
-            if ($hasConfirmed) {
-                throw ValidationException::withMessages([
-                    'type' => ['Diese Rolle ist bereits vergeben.'],
-                ]);
-            }
-
-            $active = $locked->filter(fn (Supervision $s) => in_array((int) $s->status, [1, 2], true));
-            $status = $active->isEmpty() ? 2 : 1;
 
             Supervision::create([
                 'thesis' => $thesis->id,
                 'teacher' => $teacher->id,
                 'type' => (int) $data['type'],
                 'datum' => $now,
-                'status' => $status,
+                'status' => 2,
             ]);
         });
 
@@ -231,13 +220,12 @@ class TeacherThesisBoardController extends Controller
             abort(403);
         }
 
-        DB::transaction(function () use ($supervision, $thesis, $teacher) {
+        DB::transaction(function () use ($supervision, $teacher) {
             $supervision->refresh();
             if ((int) $supervision->teacher !== (int) $teacher->id) {
                 abort(403);
             }
             $supervision->update(['status' => 0]);
-            $this->promoteIfSingleApplicant($thesis->id, (int) $supervision->type);
         });
 
         return response()->json(['status' => 'ok']);
@@ -261,7 +249,7 @@ class TeacherThesisBoardController extends Controller
         $data = $request->validate([
             'thesis_id' => ['required', 'integer'],
             'type' => ['required', 'integer', 'in:1,2'],
-            'teacher_id' => ['required', 'integer', 'exists:teachers,id'],
+            'teacher_id' => ['present', 'nullable', 'integer', 'exists:teachers,id'],
         ]);
 
         $thesis = Thesis::query()
@@ -270,11 +258,9 @@ class TeacherThesisBoardController extends Controller
             ->where('status', '>', 0)
             ->firstOrFail();
 
-        $winner = Teacher::query()->where('id', $data['teacher_id'])->where('status', '>', 0)->firstOrFail();
-
         $this->assertSupervisionAllowedForSessionRules($thesis, (int) $data['type'], $thesisSession);
 
-        DB::transaction(function () use ($thesis, $winner, $data, $now) {
+        DB::transaction(function () use ($thesis, $data, $now) {
             Supervision::query()
                 ->where('thesis', $thesis->id)
                 ->where('type', (int) $data['type'])
@@ -285,6 +271,12 @@ class TeacherThesisBoardController extends Controller
                 ->where('thesis', $thesis->id)
                 ->where('type', (int) $data['type'])
                 ->update(['status' => 0]);
+
+            if ($data['teacher_id'] === null) {
+                return;
+            }
+
+            $winner = Teacher::query()->where('id', $data['teacher_id'])->where('status', '>', 0)->firstOrFail();
 
             $row = Supervision::query()
                 ->where('thesis', $thesis->id)
@@ -351,25 +343,6 @@ class TeacherThesisBoardController extends Controller
         }
     }
 
-    private function promoteIfSingleApplicant(int $thesisId, int $type): void
-    {
-        $active = Supervision::query()
-            ->where('thesis', $thesisId)
-            ->where('type', $type)
-            ->whereIn('status', [1, 2])
-            ->get();
-
-        $confirmed = $active->first(fn (Supervision $s) => (int) $s->status === 2);
-        if ($confirmed) {
-            return;
-        }
-
-        $pending = $active->filter(fn (Supervision $s) => (int) $s->status === 1);
-        if ($pending->count() === 1) {
-            $pending->first()->update(['status' => 2]);
-        }
-    }
-
     /**
      * @param  array<string, mixed>  $sectionsMeta
      * @return list<array{key: string, name: string, classes: list<array{class_label: string, theses: list<array<string, mixed>>}>}>
@@ -433,22 +406,6 @@ class TeacherThesisBoardController extends Controller
 
     private function thesisPayload(Thesis $thesis): array
     {
-        $main = [];
-        $gegen = [];
-        foreach ($thesis->supervisions as $s) {
-            $t = [
-                'id' => $s->id,
-                'teacher_id' => $s->teacher,
-                'teacher_name' => $s->teacherModel?->fullName() ?? '',
-                'status' => (int) $s->status,
-            ];
-            if ((int) $s->type === 1) {
-                $main[] = $t;
-            } elseif ((int) $s->type === 2) {
-                $gegen[] = $t;
-            }
-        }
-
         return [
             'id' => $thesis->id,
             'title' => $thesis->title,
@@ -460,10 +417,33 @@ class TeacherThesisBoardController extends Controller
                 'last_name' => $a->last_name,
                 'class' => $a->class,
             ])->values()->all(),
-            'supervisions' => [
-                'main' => $main,
-                'secondary' => $gegen,
-            ],
+            'main_supervision' => $this->activeSupervisionSlotPayload($thesis, 1),
+            'secondary_supervision' => $this->activeSupervisionSlotPayload($thesis, 2),
+        ];
+    }
+
+    /**
+     * Eine besetzte Rolle pro Typ; Legacy-Zeilen mit status 1 werden weiterhin angezeigt, bis Admin bereinigt.
+     *
+     * @return array{id: int, teacher_id: int, teacher_token: string}|null
+     */
+    private function activeSupervisionSlotPayload(Thesis $thesis, int $type): ?array
+    {
+        $candidates = $thesis->supervisions
+            ->where('type', $type)
+            ->filter(fn (Supervision $s) => in_array((int) $s->status, [1, 2], true))
+            ->sortBy(fn (Supervision $s) => (int) $s->status === 2 ? 0 : 1)
+            ->values();
+
+        $s = $candidates->first();
+        if ($s === null) {
+            return null;
+        }
+
+        return [
+            'id' => $s->id,
+            'teacher_id' => (int) $s->teacher,
+            'teacher_token' => (string) ($s->teacherModel?->token ?? ''),
         ];
     }
 
