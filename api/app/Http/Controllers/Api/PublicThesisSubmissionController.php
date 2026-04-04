@@ -25,6 +25,9 @@ class PublicThesisSubmissionController extends Controller
      *
      * Die öffentliche Themeneingabe ist nur verfügbar, wenn für eine Session das Einschreibefenster
      * für neue Arbeiten aktiv ist (allowsNew). Es wird keine Session ohne offenes Fenster ausgewählt.
+     *
+     * Autorenzahl / Bewilligung: thesis_sessions.section_author_rules (pro Sektion, Spalten 1–3 Autoren).
+     * Thesis-Status nach Speicherung: 1 = bewilligungspflichtig, 2 = aktiv (siehe Model Thesis).
      */
     public function context(Request $request)
     {
@@ -33,6 +36,7 @@ class PublicThesisSubmissionController extends Controller
             return response()->json([
                 'thesis_session' => null,
                 'sections' => [],
+                'section_author_rules' => [],
                 'phase' => [
                     'allows_new_submission' => false,
                     'allows_edit_by_code' => false,
@@ -53,6 +57,7 @@ class PublicThesisSubmissionController extends Controller
                 'schoolyear_label' => $session->schoolyear?->label,
             ],
             'sections' => $sections,
+            'section_author_rules' => is_array($session->section_author_rules) ? $session->section_author_rules : [],
             'phase' => [
                 'allows_new_submission' => $phase['allowsNew'],
                 'allows_edit_by_code' => $phase['allowsEdit'],
@@ -137,16 +142,19 @@ class PublicThesisSubmissionController extends Controller
             }
         }
 
+        $authorCount = count($validated['authors']);
+        $thesisStatus = $this->thesisInitialStatusFromAuthorRules($session, $key, $authorCount);
+
         $password = $this->uniqueEditCode();
 
-        $thesis = DB::transaction(function () use ($validated, $session, $password, $key) {
+        $thesis = DB::transaction(function () use ($validated, $session, $password, $key, $thesisStatus) {
             $t = Thesis::create([
                 'title' => $validated['title'],
                 'description' => $validated['description'],
                 'type' => 1,
                 'password' => $password,
                 'session' => $session->id,
-                'status' => 1,
+                'status' => $thesisStatus,
                 'section' => $key,
             ]);
 
@@ -169,8 +177,53 @@ class PublicThesisSubmissionController extends Controller
             'thesis' => [
                 'id' => $thesis->id,
                 'edit_code' => $password,
+                'requires_rector_approval' => (int) $thesis->status === 1,
             ],
         ], 201);
+    }
+
+    /**
+     * Nutzt thesis_sessions.section_author_rules: nur Themeneingabe (Lernende), nicht LP-Betreuung.
+     * Matrix 0/1/2: 0 = Einreichung nicht erlaubt, 1 = sofort aktiv (Thesis-Status 2), 2 = bewilligungspflichtig (Thesis-Status 1).
+     * Leeres Regelwerk, fehlende Sektionszeile oder fehlender Schlüssel für n: Thesis-Status 2 (aktiv).
+     *
+     * @return int thesis.status (1 = bewilligungspflichtig, 2 = aktiv)
+     */
+    private function thesisInitialStatusFromAuthorRules(ThesisSession $session, string $sectionKeyLower, int $authorCount): int
+    {
+        $rules = $session->section_author_rules ?? [];
+        if (! is_array($rules) || $rules === []) {
+            return 2;
+        }
+
+        $row = null;
+        foreach ($rules as $k => $r) {
+            if (strtolower((string) $k) === $sectionKeyLower && is_array($r)) {
+                $row = $r;
+                break;
+            }
+        }
+        if ($row === null) {
+            return 2;
+        }
+
+        $slot = (string) max(1, min(3, $authorCount));
+        $raw = $row[$slot] ?? $row[(int) $slot] ?? null;
+        if ($raw === null) {
+            return 2;
+        }
+
+        $code = (int) $raw;
+        if ($code === 0) {
+            throw ValidationException::withMessages([
+                'authors' => ['Für diese Sektion ist eine Arbeit mit dieser Anzahl Lernende nicht vorgesehen.'],
+            ]);
+        }
+        if ($code === 2) {
+            return 1;
+        }
+
+        return 2;
     }
 
     private function resolveSession(Request $request): ?ThesisSession

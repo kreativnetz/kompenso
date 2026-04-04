@@ -90,9 +90,15 @@ class TeacherThesisBoardController extends Controller
 
         $listMode = $fullList ? 'all' : 'mine';
 
+        $isAdmin = (int) $teacher->status >= 3;
+
         $thesisQuery = Thesis::query()
             ->where('session', $thesisSession->id)
-            ->where('status', '>', 0)
+            ->when(
+                $isAdmin,
+                fn ($q) => $q->whereIn('status', [1, 2]),
+                fn ($q) => $q->where('status', 2),
+            )
             ->with(['authors', 'supervisions.teacherModel']);
 
         if ($listMode === 'mine') {
@@ -167,10 +173,24 @@ class TeacherThesisBoardController extends Controller
         $thesis = Thesis::query()
             ->where('id', $data['thesis_id'])
             ->where('session', $thesisSession->id)
-            ->where('status', '>', 0)
+            ->where('status', 2)
             ->firstOrFail();
 
-        $this->assertSupervisionAllowedForSessionRules($thesis, (int) $data['type'], $thesisSession);
+        $type = (int) $data['type'];
+        if ((int) $teacher->status < 3) {
+            $otherType = $type === 1 ? 2 : 1;
+            $alreadyOther = Supervision::query()
+                ->where('thesis', $thesis->id)
+                ->where('type', $otherType)
+                ->where('teacher', $teacher->id)
+                ->whereIn('status', [1, 2])
+                ->exists();
+            if ($alreadyOther) {
+                throw ValidationException::withMessages([
+                    'type' => ['Du bist für diese Arbeit bereits in der anderen Betreuungsrolle eingetragen.'],
+                ]);
+            }
+        }
 
         DB::transaction(function () use ($thesis, $teacher, $data, $now) {
             $locked = Supervision::query()
@@ -255,10 +275,8 @@ class TeacherThesisBoardController extends Controller
         $thesis = Thesis::query()
             ->where('id', $data['thesis_id'])
             ->where('session', $thesisSession->id)
-            ->where('status', '>', 0)
+            ->where('status', 2)
             ->firstOrFail();
-
-        $this->assertSupervisionAllowedForSessionRules($thesis, (int) $data['type'], $thesisSession);
 
         DB::transaction(function () use ($thesis, $data, $now) {
             Supervision::query()
@@ -303,44 +321,30 @@ class TeacherThesisBoardController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
-    private function assertSupervisionAllowedForSessionRules(Thesis $thesis, int $type, ThesisSession $session): void
+    public function setThesisWorkflowStatus(Request $request, ThesisSession $thesisSession, Thesis $thesis)
     {
-        $session->loadMissing('schoolyear');
-        $rules = $session->section_author_rules ?? [];
-        if (! is_array($rules) || $rules === []) {
-            return;
+        $user = $request->user();
+        if ((int) $user->status < 3) {
+            abort(403);
         }
 
-        $sectionKey = strtolower((string) $thesis->section);
-        $row = null;
-        foreach ($rules as $k => $r) {
-            if (strtolower((string) $k) === $sectionKey && is_array($r)) {
-                $row = $r;
-                break;
-            }
-        }
-        if ($row === null) {
-            return;
+        if ((int) $thesis->session !== (int) $thesisSession->id) {
+            abort(404);
         }
 
-        $authorCount = $thesis->authors()->count();
-        $slot = (string) max(1, min(3, $authorCount));
-        $allowed = (int) ($row[$slot] ?? $row[(int) $slot] ?? 0);
-        if ($allowed === 0) {
+        $data = $request->validate([
+            'status' => ['required', 'integer', 'in:0,2'],
+        ]);
+
+        if ((int) $thesis->status !== 1) {
             throw ValidationException::withMessages([
-                'type' => ['Für diese Sektion und Autorenzahl ist diese Betreuung nicht vorgesehen.'],
+                'status' => ['Nur Arbeiten mit ausstehender Bewilligung können hier bearbeitet werden.'],
             ]);
         }
-        if ($type === 1 && ! in_array($allowed, [1, 2], true)) {
-            throw ValidationException::withMessages([
-                'type' => ['Hauptbetreuung für diese Konstellation nicht erlaubt.'],
-            ]);
-        }
-        if ($type === 2 && $allowed !== 1) {
-            throw ValidationException::withMessages([
-                'type' => ['Gegenbetreuung für diese Konstellation nicht erlaubt.'],
-            ]);
-        }
+
+        $thesis->update(['status' => (int) $data['status']]);
+
+        return response()->json(['status' => 'ok']);
     }
 
     /**
@@ -410,6 +414,7 @@ class TeacherThesisBoardController extends Controller
             'id' => $thesis->id,
             'title' => $thesis->title,
             'description' => $thesis->description,
+            'workflow_status' => (int) $thesis->status,
             'section_key' => strtolower((string) $thesis->section),
             'main_class' => $this->mainClassLabel($thesis),
             'authors' => $thesis->authors->map(fn ($a) => [

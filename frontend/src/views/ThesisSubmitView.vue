@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { api } from '../api'
 
@@ -46,6 +46,52 @@ const phaseHint = computed(() => {
   }
   return ''
 })
+
+function countFilledAuthors() {
+  let n = 0
+  for (const a of authors.value) {
+    const fn = (a.first_name || '').trim()
+    const ln = (a.last_name || '').trim()
+    const cl = (a.class || '').trim()
+    const em = (a.email || '').trim()
+    if (fn && ln && cl && em) {
+      n += 1
+    }
+  }
+  return n
+}
+
+/** Matrix-Zelle 0/1/2 für gewählte Sektion und aktuelle Lernenden-Anzahl, sonst null. */
+const authorRuleCodeForForm = computed(() => {
+  const rules = context.value?.section_author_rules
+  const sk = (sectionKey.value || '').trim().toLowerCase()
+  const cnt = countFilledAuthors()
+  if (!rules || typeof rules !== 'object' || !sk || cnt < 1) {
+    return null
+  }
+  let row = null
+  for (const [k, r] of Object.entries(rules)) {
+    if (String(k).toLowerCase() === sk && r && typeof r === 'object') {
+      row = r
+      break
+    }
+  }
+  if (!row) {
+    return null
+  }
+  const slot = String(Math.max(1, Math.min(3, cnt)))
+  const raw = row[slot] ?? row[Number(slot)]
+  if (raw === undefined || raw === null) {
+    return null
+  }
+  return Number(raw)
+})
+
+const showRectorApprovalHint = computed(() => authorRuleCodeForForm.value === 2)
+
+watch([authors, sectionKey], () => {
+  submitError.value = ''
+}, { deep: true })
 
 onMounted(async () => {
   loading.value = true
@@ -207,6 +253,13 @@ async function submit() {
           (bis kurz nach Ende der Einreichungsphase laut Ausschreibung).
         </p>
         <p
+          v-if="successPayload.requires_rector_approval"
+          class="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-sm leading-snug text-sky-950 ring-1 ring-sky-200"
+        >
+          <strong>Wichtig:</strong> Bei dieser Konstellation muss der Rektor / die Rektorin deine Arbeit noch
+          bewilligen. Erst danach erscheint sie auf der Themensliste für Lehrpersonen.
+        </p>
+        <p
           class="mt-4 rounded-2xl bg-ink-900 px-4 py-3 text-center font-mono text-lg font-semibold tracking-wider text-white"
         >
           {{ successPayload.edit_code }}
@@ -235,6 +288,15 @@ async function submit() {
       >
         <p v-if="phaseHint" class="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
           {{ phaseHint }}
+        </p>
+
+        <p
+          v-if="sectionKey && showRectorApprovalHint"
+          class="rounded-xl bg-sky-50 px-3 py-2 text-sm leading-snug text-sky-950 ring-1 ring-sky-200"
+        >
+          <strong>Hinweis:</strong> Für diese Sektion und die gewählte Anzahl Lernende ist eine
+          <strong>Bewilligung durch den Rektor / die Rektorin</strong> vorgesehen. Dein Thema wird erst nach dieser
+          Freigabe für Lehrpersonen sichtbar. Du erhältst trotzdem einen Bearbeitungscode.
         </p>
 
         <div>

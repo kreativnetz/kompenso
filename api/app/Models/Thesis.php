@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $status 0 = abgelehnt/inaktiv, 1 = bewilligungspflichtig, 2 = aktiv/bewilligt
+ */
 class Thesis extends Model
 {
     protected $table = 'thesis';

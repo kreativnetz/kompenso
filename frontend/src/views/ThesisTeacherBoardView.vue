@@ -46,18 +46,38 @@ const listModeLabel = computed(() =>
     : 'Alle Arbeiten dieser Session',
 )
 
+function authorLabel(a) {
+  const name = [a.first_name, a.last_name].filter(Boolean).join(' ').trim()
+  const cls = String(a.class ?? '').trim()
+  if (!name && !cls) {
+    return ''
+  }
+  return cls ? `${name} (${cls})` : name
+}
+
 function authorsShort(th) {
   const list = th.authors || []
   if (!list.length) {
     return '—'
   }
-  const names = list.map((a) =>
-    [a.first_name, a.last_name].filter(Boolean).join(' ').trim(),
-  )
+  const names = list.map((a) => authorLabel(a)).filter(Boolean)
+  if (!names.length) {
+    return '—'
+  }
   if (names.length <= 2) {
     return names.join(', ')
   }
   return `${names[0]}, ${names[1]}, …`
+}
+
+function thesesInSectionOrder(sec) {
+  const rows = []
+  for (const cl of sec.classes || []) {
+    for (const th of cl.theses || []) {
+      rows.push(th)
+    }
+  }
+  return rows
 }
 
 function toggleDesc(id) {
@@ -68,14 +88,40 @@ function slot(th, type) {
   return type === 1 ? th.main_supervision : th.secondary_supervision
 }
 
+function thesisAllowsSupervision(th) {
+  return (th.workflow_status ?? 2) === 2
+}
+
+function teacherInOtherSlot(th, type) {
+  const tid = teacher.value?.id
+  if (tid == null) {
+    return false
+  }
+  const otherType = type === 1 ? 2 : 1
+  const s = slot(th, otherType)
+  return s != null && s.teacher_id === tid
+}
+
 function canBookType(th, type) {
+  if (!thesisAllowsSupervision(th)) {
+    return false
+  }
   if (!board.value?.phase?.can_book) {
     return false
   }
-  return slot(th, type) == null
+  if (slot(th, type) != null) {
+    return false
+  }
+  if (teacherInOtherSlot(th, type) && !canAdminAssignUI()) {
+    return false
+  }
+  return true
 }
 
 function canWithdrawType(th, type) {
+  if (!thesisAllowsSupervision(th)) {
+    return false
+  }
   if (!board.value?.phase?.can_book) {
     return false
   }
@@ -84,13 +130,19 @@ function canWithdrawType(th, type) {
   return s != null && tid != null && s.teacher_id === tid
 }
 
+function isOwnSupervisionSlot(th, type) {
+  const tid = teacher.value?.id
+  const s = slot(th, type)
+  return tid != null && s != null && Number(s.teacher_id) === Number(tid)
+}
+
 function canAdminAssignUI() {
   return Boolean(board.value?.phase?.can_admin_assign && board.value?.teachers?.length)
 }
 
 const slotTypes = [
-  { type: 1, bookLabel: '+H', assignLabel: 'H*', clearLabel: 'H∅', bookTitle: 'Hauptbetreuung eintragen', withdrawTitle: 'Hauptbetreuung austragen', clearTitle: 'Hauptbetreuung löschen' },
-  { type: 2, bookLabel: '+G', assignLabel: 'G*', clearLabel: 'G∅', bookTitle: 'Gegenbetreuung eintragen', withdrawTitle: 'Gegenbetreuung austragen', clearTitle: 'Gegenbetreuung löschen' },
+  { type: 1, bookLabel: 'eintragen', assignLabel: 'zuteilen', clearLabel: 'löschen', bookTitle: 'Hauptbetreuung eintragen', withdrawTitle: 'Hauptbetreuung austragen', clearTitle: 'Hauptbetreuung löschen' },
+  { type: 2, bookLabel: 'eintragen', assignLabel: 'zuteilen', clearLabel: 'löschen', bookTitle: 'Gegenbetreuung eintragen', withdrawTitle: 'Gegenbetreuung austragen', clearTitle: 'Gegenbetreuung löschen' },
 ]
 
 const assignOpen = ref({})
@@ -203,6 +255,19 @@ async function clearSlotAdmin(thesisId, type) {
   await submitAssign(thesisId, type, null)
 }
 
+async function setThesisWorkflow(thesisId, newStatus) {
+  actionError.value = ''
+  acting.value = true
+  const res = await api.setThesisWorkflowStatus(sessionId.value, thesisId, { status: newStatus })
+  acting.value = false
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    actionError.value = err.message || err.errors?.status?.[0] || 'Status konnte nicht gesetzt werden.'
+    return
+  }
+  await loadBoard()
+}
+
 onMounted(async () => {
   const u = await ensureUser()
   if (!u) {
@@ -278,29 +343,24 @@ watch(
             <div class="border-b border-ink-100 bg-ink-50/80 px-4 py-2.5 sm:px-5">
               <h2 class="text-base font-semibold text-ink-900 sm:text-lg">{{ sec.name }}</h2>
             </div>
-            <div class="divide-y divide-ink-100">
-              <div v-for="cl in sec.classes" :key="cl.class_label" class="px-2 py-3 sm:px-4">
-                <h3 class="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-                  Klasse {{ cl.class_label }}
-                </h3>
-
-                <div
-                  class="overflow-x-auto rounded-xl border border-ink-100 bg-ink-50/40 ring-1 ring-ink-100/80"
-                >
-                  <div class="min-w-0">
-                    <div
-                      class="grid grid-cols-12 gap-x-1 gap-y-0 border-b border-ink-200/80 bg-ink-100/60 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-600 sm:px-3 sm:text-xs"
-                    >
-                      <div class="col-span-6  ">Thema</div>
-                      <div class="col-span-4">
-                        <span class="hidden sm:inline">Lernende</span>
-                        <span class="sm:hidden">L</span>
-                      </div>
-                      <div class="col-span-1 text-center">H</div>
-                      <div class="col-span-1 text-center">G</div>
+            <div class="px-2 py-3 sm:px-4">
+              <div
+                class="overflow-x-auto rounded-xl border border-ink-100 bg-ink-50/40 ring-1 ring-ink-100/80"
+              >
+                <div class="min-w-0">
+                  <div
+                    class="grid grid-cols-12 gap-x-1 gap-y-0 border-b border-ink-200/80 bg-ink-100/60 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-600 sm:px-3 sm:text-xs"
+                  >
+                    <div class="col-span-6">Thema</div>
+                    <div class="col-span-4">
+                      <span class="hidden sm:inline">Lernende</span>
+                      <span class="sm:hidden">L</span>
                     </div>
+                    <div class="col-span-1 text-center">H</div>
+                    <div class="col-span-1 text-center">G</div>
+                  </div>
 
-                    <template v-for="(th, idx) in cl.theses" :key="th.id">
+                  <template v-for="(th, idx) in thesesInSectionOrder(sec)" :key="th.id">
                     <div
                       class="border-b border-ink-100/90"
                       :class="idx % 2 === 1 ? 'bg-white/70' : 'bg-white/40'"
@@ -312,6 +372,33 @@ watch(
                         <p class="truncate font-medium leading-tight text-ink-900 cursor-pointer" :title="th.title" @click="toggleDesc(th.id)">
                           {{ th.title }}
                         </p>
+                        <p
+                          v-if="th.workflow_status === 1"
+                          class="mt-1 text-[10px] font-medium text-amber-800 sm:text-xs"
+                        >
+                          Bewilligung durch Rektorat ausstehend — Betreuung noch nicht möglich.
+                        </p>
+                        <div
+                          v-if="th.workflow_status === 1 && canAdminAssignUI()"
+                          class="mt-1.5 flex flex-wrap gap-1"
+                        >
+                          <button
+                            type="button"
+                            :disabled="acting"
+                            class="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-40 sm:text-xs"
+                            @click="setThesisWorkflow(th.id, 2)"
+                          >
+                            Bewilligen
+                          </button>
+                          <button
+                            type="button"
+                            :disabled="acting"
+                            class="rounded border border-rose-300 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-900 hover:bg-rose-100 disabled:opacity-40 sm:text-xs"
+                            @click="setThesisWorkflow(th.id, 0)"
+                          >
+                            Ablehnen
+                          </button>
+                        </div>
                       </div>
 
                       <div class="col-span-4 min-w-0 truncate text-ink-600" :title="authorsShort(th)">
@@ -328,7 +415,12 @@ watch(
                             v-if="canWithdrawType(th, meta.type)"
                             type="button"
                             :disabled="acting"
-                            class="max-w-full truncate rounded border border-transparent px-0.5 py-0 text-center hover:border-ink-200 hover:bg-ink-50 disabled:opacity-40"
+                            class="max-w-full truncate rounded px-0.5 py-0.5 text-center text-[11px] disabled:opacity-40 sm:text-xs"
+                            :class="
+                              isOwnSupervisionSlot(th, meta.type)
+                                ? 'border border-emerald-400 bg-emerald-100 font-bold text-emerald-950 shadow-sm ring-1 ring-emerald-400/70 hover:bg-emerald-200'
+                                : 'border border-transparent hover:border-ink-200 hover:bg-ink-50'
+                            "
                             :title="meta.withdrawTitle"
                             @click="withdraw(slot(th, meta.type).id)"
                           >
@@ -336,13 +428,22 @@ watch(
                           </button>
                           <span
                             v-else
-                            class="max-w-full truncate text-center"
-                            :title="slot(th, meta.type).teacher_token"
+                            class="max-w-full truncate rounded px-0.5 py-0.5 text-center text-[11px] sm:text-xs"
+                            :class="
+                              isOwnSupervisionSlot(th, meta.type)
+                                ? 'border border-emerald-400 bg-emerald-100 font-bold text-emerald-950 shadow-sm ring-1 ring-emerald-400/70'
+                                : ''
+                            "
+                            :title="
+                              isOwnSupervisionSlot(th, meta.type)
+                                ? 'Deine Betreuung: ' + slot(th, meta.type).teacher_token
+                                : slot(th, meta.type).teacher_token
+                            "
                           >
                             {{ slot(th, meta.type).teacher_token }}
                           </span>
                           <button
-                            v-if="canAdminAssignUI()"
+                            v-if="canAdminAssignUI() && thesisAllowsSupervision(th)"
                             type="button"
                             class="rounded border border-rose-200 bg-rose-50 px-1 py-0.5 text-[9px] font-semibold leading-none text-rose-900 hover:bg-rose-100 sm:text-[10px]"
                             :disabled="acting"
@@ -365,7 +466,7 @@ watch(
                               {{ meta.bookLabel }}
                             </button>
                             <button
-                              v-if="canAdminAssignUI()"
+                              v-if="canAdminAssignUI() && thesisAllowsSupervision(th)"
                               type="button"
                               class="rounded border border-violet-200 bg-violet-50 px-1 py-0.5 text-[9px] font-semibold leading-none text-violet-900 hover:bg-violet-100 sm:text-[10px]"
                               :title="`${meta.assignLabel}: Lehrperson zuweisen`"
@@ -374,7 +475,7 @@ watch(
                               {{ meta.assignLabel }}
                             </button>
                             <span
-                              v-if="!canBookType(th, meta.type) && !canAdminAssignUI()"
+                              v-if="!canBookType(th, meta.type) && (!canAdminAssignUI() || !thesisAllowsSupervision(th))"
                               class="text-ink-400"
                             >
                               —
@@ -394,6 +495,7 @@ watch(
                     <div
                       v-if="
                         board.phase.can_admin_assign &&
+                        thesisAllowsSupervision(th) &&
                         (assignOpen[`${th.id}-1`] || assignOpen[`${th.id}-2`])
                       "
                       class="border-t border-ink-100/90 bg-violet-50/50 px-2 py-2 sm:px-3"
@@ -440,8 +542,7 @@ watch(
                       </div>
                     </div>
                     </div>
-                    </template>
-                  </div>
+                  </template>
                 </div>
               </div>
             </div>

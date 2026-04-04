@@ -724,7 +724,12 @@ onMounted(async () => {
 
             <div class="border-t border-ink-100 pt-2">
               <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500">
-                Autorenregeln (0 = nein, 1 = ja, 2 = Bewilligung)
+                Autorenregeln nur für die Themeneingabe (Lernende)
+              </p>
+              <p class="mb-2 text-xs leading-snug text-ink-600">
+                Gilt nicht für die Betreuung durch Lehrpersonen. Pro Sektion und Anzahl Lernende: 0 = Einreichen nicht
+                erlaubt, 1 = Arbeit sofort aktiv (Thesis-Status „bewilligt“), 2 = bewilligungspflichtig (Thesis-Status
+                „ausstehend“ bis Rektorat auf der Themensliste freigibt oder ablehnt).
               </p>
               <div v-if="sectionKeys.length === 0" class="rounded border border-ink-100 bg-ink-50/50 px-2 py-2 text-xs text-ink-600">
                 Keine Sektionen im gewählten Schuljahr — bitte Schuljahr bearbeiten.

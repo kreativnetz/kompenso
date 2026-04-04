@@ -77,6 +77,12 @@ export const api = {
   thesisSessionTeacherBoard(sessionId) {
     return request(`/thesis-sessions/${sessionId}/teacher-board`)
   },
+  setThesisWorkflowStatus(sessionId, thesisId, body) {
+    return request(`/thesis-sessions/${sessionId}/theses/${thesisId}/workflow-status`, {
+      method: 'POST',
+      body,
+    })
+  },
   bookSupervision(sessionId, body) {
     return request(`/thesis-sessions/${sessionId}/supervisions`, { method: 'POST', body })
   },

@@ -221,6 +221,8 @@ class ThesisSessionAdminController extends Controller
     }
 
     /**
+     * section_author_rules steuert nur die öffentliche Themeneingabe (erlaubte Autorenzahl / Bewilligung), nicht LP-Betreuung.
+     *
      * @param  array<string, mixed>  $rules
      */
     private function assertAuthorRulesMatchYear(array $rules, Schoolyear $schoolyear): void
@@ -247,7 +249,7 @@ class ThesisSessionAdminController extends Controller
                 }
                 if (! in_array((int) $v, [0, 1, 2], true)) {
                     throw ValidationException::withMessages([
-                        'section_author_rules' => ['Werte pro Autorenzahl: 0 = nein, 1 = ja, 2 = Bewilligung.'],
+                        'section_author_rules' => ['Themeneingabe — Werte pro Autorenzahl: 0 = nicht erlaubt, 1 = sofort aktiv (Thesis-Status 2), 2 = bewilligungspflichtig (Thesis-Status 1 bis Freigabe).'],
                     ]);
                 }
             }
