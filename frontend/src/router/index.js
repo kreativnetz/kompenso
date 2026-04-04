@@ -10,6 +10,7 @@ const SchoolyearsAdminView = () => import('../views/SchoolyearsAdminView.vue')
 const ThesisSubmitView = () => import('../views/ThesisSubmitView.vue')
 const ThesisTeacherBoardView = () => import('../views/ThesisTeacherBoardView.vue')
 const ThesisMyBookingsView = () => import('../views/ThesisMyBookingsView.vue')
+const ThesisSupervisionListView = () => import('../views/ThesisSupervisionListView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -60,6 +61,11 @@ const router = createRouter({
       name: 'thesis-my-bookings',
       component: ThesisMyBookingsView,
     },
+    {
+      path: '/arbeiten/betreuungsliste',
+      name: 'thesis-supervision-list',
+      component: ThesisSupervisionListView,
+    },
   ],
 })
 
@@ -77,7 +83,11 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 
-  if (to.name === 'thesis-teacher-board' || to.name === 'thesis-my-bookings') {
+  if (
+    to.name === 'thesis-teacher-board' ||
+    to.name === 'thesis-my-bookings' ||
+    to.name === 'thesis-supervision-list'
+  ) {
     const q = to.query.thesis_session_id
     if (q == null || String(q).trim() === '') {
       return { name: 'home', query: { board_missing: '1' } }

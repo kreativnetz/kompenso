@@ -77,6 +77,9 @@ export const api = {
   thesisSessionTeacherBoard(sessionId) {
     return request(`/thesis-sessions/${sessionId}/teacher-board`)
   },
+  thesisSessionSupervisionList(sessionId) {
+    return request(`/thesis-sessions/${sessionId}/supervision-list`)
+  },
   thesisSessionMyBookings(sessionId) {
     return request(`/thesis-sessions/${sessionId}/my-bookings`)
   },

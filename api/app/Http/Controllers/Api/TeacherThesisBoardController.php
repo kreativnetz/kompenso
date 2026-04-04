@@ -137,6 +137,64 @@ class TeacherThesisBoardController extends Controller
         ]);
     }
 
+    public function supervisionList(Request $request, ThesisSession $thesisSession)
+    {
+        $now = Carbon::now();
+
+        if (! $thesisSession->schoolyear_id) {
+            abort(404);
+        }
+
+        $this->assertTeacherBoardSessionAccess($request, $thesisSession, $now);
+
+        $teacher = $request->user();
+        $isAdmin = (int) $teacher->status >= 3;
+
+        $theses = Thesis::query()
+            ->where('session', $thesisSession->id)
+            ->when(
+                $isAdmin,
+                fn ($q) => $q->whereIn('status', [1, 2]),
+                fn ($q) => $q->where('status', 2),
+            )
+            ->with(['authors', 'supervisions.teacherModel'])
+            ->get();
+
+        $items = $theses->map(function (Thesis $t) {
+            $main = $this->activeSupervisionSlotPayload($t, 1);
+            $sec = $this->activeSupervisionSlotPayload($t, 2);
+
+            return [
+                'thesis_id' => $t->id,
+                'title' => (string) $t->title,
+                'authors' => $t->authors->map(fn ($a) => [
+                    'first_name' => $a->first_name,
+                    'last_name' => $a->last_name,
+                    'class' => $a->class,
+                ])->values()->all(),
+                'main_supervision_token' => $main ? (string) ($main['teacher_token'] ?? '') : '',
+                'secondary_supervision_token' => $sec ? (string) ($sec['teacher_token'] ?? '') : '',
+            ];
+        })->all();
+
+        usort($items, function (array $a, array $b): int {
+            return [
+                strtolower($a['main_supervision_token']),
+                strtolower($a['secondary_supervision_token']),
+                strtolower($a['title']),
+            ] <=> [
+                strtolower($b['main_supervision_token']),
+                strtolower($b['secondary_supervision_token']),
+                strtolower($b['title']),
+            ];
+        });
+
+        return response()->json([
+            'thesis_session' => $this->sessionSummaryPayload($thesisSession, $now),
+            'items' => array_values($items),
+        ]);
+    }
+
     public function myBookings(Request $request, ThesisSession $thesisSession)
     {
         $teacher = $request->user();

@@ -40,6 +40,10 @@ function bookingsLink(sessionId) {
   return { name: 'thesis-my-bookings', query: { thesis_session_id: String(sessionId) } }
 }
 
+function supervisionListLink(sessionId) {
+  return { name: 'thesis-supervision-list', query: { thesis_session_id: String(sessionId) } }
+}
+
 onMounted(async () => {
   tokenPresent.value = !!getToken()
   if (!tokenPresent.value) {
@@ -203,6 +207,12 @@ async function logout() {
                   class="inline-flex items-center rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm backdrop-blur-sm transition hover:bg-white/20"
                 >
                   Meine Buchungen
+                </RouterLink>
+                <RouterLink
+                  :to="supervisionListLink(currentAccessibleSession.id)"
+                  class="inline-flex items-center rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm backdrop-blur-sm transition hover:bg-white/20"
+                >
+                  Betreuungsliste
                 </RouterLink>
               </div>
             </section>
