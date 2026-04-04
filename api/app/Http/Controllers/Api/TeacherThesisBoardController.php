@@ -65,28 +65,11 @@ class TeacherThesisBoardController extends Controller
             abort(404);
         }
 
+        $this->assertTeacherBoardSessionAccess($request, $thesisSession, $now);
+
         $phaseIndex = ThesisSessionPhase::currentPhaseIndex($thesisSession, $now);
         $allowsBoard = ThesisSessionPhase::allowsTeacherBoard($thesisSession, $now);
-        $isPast = ThesisSessionPhase::isSessionPast($thesisSession, $now);
         $fullList = ThesisSessionPhase::isActiveForFullList($thesisSession, $now);
-
-        $hasConfirmedHere = Supervision::query()
-            ->where('teacher', $teacher->id)
-            ->where('status', 2)
-            ->whereIn('thesis', function ($q) use ($thesisSession) {
-                $q->select('id')
-                    ->from('thesis')
-                    ->where('session', $thesisSession->id);
-            })
-            ->exists();
-
-        if (! $allowsBoard) {
-            abort(403, 'Die Themensliste ist in dieser Phase noch nicht freigegeben.');
-        }
-
-        if ($isPast && ! $hasConfirmedHere) {
-            abort(403, 'Kein Zugriff auf diese abgeschlossene Session.');
-        }
 
         $listMode = $fullList ? 'all' : 'mine';
 
@@ -151,6 +134,109 @@ class TeacherThesisBoardController extends Controller
             'list_mode' => $listMode,
             'sections' => $grouped,
             'teachers' => $teachersForAssign,
+        ]);
+    }
+
+    public function myBookings(Request $request, ThesisSession $thesisSession)
+    {
+        $teacher = $request->user();
+        $now = Carbon::now();
+
+        if (! $thesisSession->schoolyear_id) {
+            abort(404);
+        }
+
+        $this->assertTeacherBoardSessionAccess($request, $thesisSession, $now);
+
+        $isAdmin = (int) $teacher->status >= 3;
+        $thesisStatuses = $isAdmin ? [1, 2] : [2];
+
+        $supervisions = Supervision::query()
+            ->where('teacher', $teacher->id)
+            ->where('status', 2)
+            ->whereHas('thesisModel', function ($q) use ($thesisSession, $thesisStatuses) {
+                $q->where('session', $thesisSession->id)
+                    ->whereIn('status', $thesisStatuses);
+            })
+            ->with(['thesisModel.authors', 'thesisModel.supervisions.teacherModel'])
+            ->orderBy('thesis')
+            ->orderBy('type')
+            ->get();
+
+        $thesisSession->loadMissing('schoolyear');
+        $sectionsMeta = $thesisSession->schoolyear?->sections;
+        if (! is_array($sectionsMeta)) {
+            $sectionsMeta = [];
+        }
+
+        $compensation = is_array($thesisSession->compensation) ? $thesisSession->compensation : [];
+
+        $byThesis = $supervisions->groupBy('thesis');
+
+        $cards = [];
+        $mainCount = 0;
+        $secondaryCount = 0;
+        $compSum = 0.0;
+
+        foreach ($byThesis as $group) {
+            $t = $group->first()?->thesisModel;
+            if ($t === null) {
+                continue;
+            }
+
+            $authorCount = $t->authors->count();
+            $sk = strtolower((string) $t->section);
+            $sectionName = $this->sectionLabelFromMeta($sk, $sectionsMeta);
+
+            $roles = [];
+            foreach ($group->sortBy('type') as $sup) {
+                $type = (int) $sup->type;
+                if ($type === 1) {
+                    $mainCount++;
+                } else {
+                    $secondaryCount++;
+                }
+                $amount = $this->compensationAmountForRole($compensation, $authorCount, $type);
+                if ($amount !== null) {
+                    $compSum += $amount;
+                }
+                $roles[] = [
+                    'type' => $type,
+                    'role_label' => $type === 1 ? 'Hauptbetreuung' : 'Gegenbetreuung',
+                    'compensation_amount' => $amount,
+                    'other_supervisor' => $this->otherActiveSupervisorForThesis($t, $type, (int) $teacher->id),
+                ];
+            }
+
+            $cards[] = [
+                'thesis_id' => $t->id,
+                'title' => $t->title,
+                'section_key' => $sk,
+                'section_name' => $sectionName,
+                'main_class' => $this->mainClassLabel($t),
+                'authors' => $t->authors->map(fn ($a) => [
+                    'first_name' => $a->first_name,
+                    'last_name' => $a->last_name,
+                    'class' => $a->class,
+                ])->values()->all(),
+                'roles' => $roles,
+            ];
+        }
+
+        usort($cards, function ($a, $b) {
+            return [$a['section_key'], $a['main_class'], $a['title']]
+                <=> [$b['section_key'], $b['main_class'], $b['title']];
+        });
+
+        return response()->json([
+            'thesis_session' => $this->sessionSummaryPayload($thesisSession, $now),
+            'cards' => $cards,
+            'totals' => [
+                'theses_count' => count($cards),
+                'main_supervisions' => $mainCount,
+                'secondary_supervisions' => $secondaryCount,
+                'compensation_total' => round($compSum, 2),
+            ],
         ]);
     }
 
@@ -463,6 +549,92 @@ class TeacherThesisBoardController extends Controller
             'phase_index' => ThesisSessionPhase::currentPhaseIndex($session, $now),
             'is_past' => ThesisSessionPhase::isSessionPast($session, $now),
             'is_active_for_board' => ThesisSessionPhase::isActiveForFullList($session, $now),
+        ];
+    }
+
+    private function assertTeacherBoardSessionAccess(Request $request, ThesisSession $thesisSession, Carbon $now): void
+    {
+        $teacher = $request->user();
+        $allowsBoard = ThesisSessionPhase::allowsTeacherBoard($thesisSession, $now);
+        $isPast = ThesisSessionPhase::isSessionPast($thesisSession, $now);
+
+        $hasConfirmedHere = Supervision::query()
+            ->where('teacher', $teacher->id)
+            ->where('status', 2)
+            ->whereIn('thesis', function ($q) use ($thesisSession) {
+                $q->select('id')
+                    ->from('thesis')
+                    ->where('session', $thesisSession->id);
+            })
+            ->exists();
+
+        if (! $allowsBoard) {
+            abort(403, 'Die Themensliste ist in dieser Phase noch nicht freigegeben.');
+        }
+
+        if ($isPast && ! $hasConfirmedHere) {
+            abort(403, 'Kein Zugriff auf diese abgeschlossene Session.');
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $sectionsMeta
+     */
+    private function sectionLabelFromMeta(string $sectionKey, array $sectionsMeta): string
+    {
+        $name = $sectionKey;
+        foreach ($sectionsMeta as $rawK => $def) {
+            if (strtolower((string) $rawK) === $sectionKey && is_array($def)) {
+                $n = trim((string) ($def['name'] ?? ''));
+                if ($n !== '') {
+                    $name = $n;
+                }
+                break;
+            }
+        }
+
+        return $name;
+    }
+
+    /**
+     * @param  array<string, mixed>  $compensation
+     */
+    private function compensationAmountForRole(array $compensation, int $authorCount, int $type): ?float
+    {
+        $key = $type === 1 ? 'haupt' : 'gegen';
+        $row = $compensation[$key] ?? null;
+        if (! is_array($row)) {
+            return null;
+        }
+        $slot = (string) max(1, min(3, $authorCount));
+        $raw = $row[$slot] ?? $row[(int) $slot] ?? null;
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        return round((float) $raw, 4);
+    }
+
+    private function otherActiveSupervisorForThesis(Thesis $thesis, int $myType, int $viewerTeacherId): ?array
+    {
+        $otherType = $myType === 1 ? 2 : 1;
+        $candidates = $thesis->supervisions
+            ->where('type', $otherType)
+            ->filter(fn (Supervision $s) => in_array((int) $s->status, [1, 2], true))
+            ->sortBy(fn (Supervision $s) => (int) $s->status === 2 ? 0 : 1)
+            ->values();
+        $s = $candidates->first();
+        if ($s === null) {
+            return null;
+        }
+        if ((int) $s->teacher === $viewerTeacherId) {
+            return null;
+        }
+
+        return [
+            'teacher_id' => (int) $s->teacher,
+            'token' => (string) ($s->teacherModel?->token ?? ''),
+            'full_name' => $s->teacherModel?->fullName() ?? '',
         ];
     }
 }

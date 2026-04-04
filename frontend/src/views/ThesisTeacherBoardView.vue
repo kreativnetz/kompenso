@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { api } from '../api'
 import { getUser, setUser } from '../lib/auth'
 
@@ -310,6 +310,13 @@ watch(
             Schuljahr {{ board.thesis_session.schoolyear_label }}
           </p>
           <p v-if="board" class="mt-1 text-xs text-ink-600 sm:text-sm">{{ listModeLabel }}</p>
+          <RouterLink
+            v-if="board && sessionId != null"
+            :to="{ name: 'thesis-my-bookings', query: { thesis_session_id: String(sessionId) } }"
+            class="mt-3 inline-flex items-center rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 sm:text-sm"
+          >
+            Meine Buchungen
+          </RouterLink>
         </div>
         <div v-if="board" class="flex flex-col items-end gap-1.5">
           <span

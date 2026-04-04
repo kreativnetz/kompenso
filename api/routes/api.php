@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/thesis-sessions/{thesisSession}', [ThesisSessionAdminController::class, 'destroy']);
 
     Route::get('/thesis-sessions/{thesisSession}/teacher-board', [TeacherThesisBoardController::class, 'teacherBoard']);
+    Route::get('/thesis-sessions/{thesisSession}/my-bookings', [TeacherThesisBoardController::class, 'myBookings']);
     Route::post('/thesis-sessions/{thesisSession}/theses/{thesis}/workflow-status', [TeacherThesisBoardController::class, 'setThesisWorkflowStatus']);
     Route::post('/thesis-sessions/{thesisSession}/supervisions', [TeacherThesisBoardController::class, 'storeSupervision']);
     Route::post('/thesis-sessions/{thesisSession}/supervisions/assign', [TeacherThesisBoardController::class, 'assignSupervision']);

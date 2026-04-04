@@ -36,6 +36,10 @@ function boardLink(sessionId) {
   return { name: 'thesis-teacher-board', query: { thesis_session_id: String(sessionId) } }
 }
 
+function bookingsLink(sessionId) {
+  return { name: 'thesis-my-bookings', query: { thesis_session_id: String(sessionId) } }
+}
+
 onMounted(async () => {
   tokenPresent.value = !!getToken()
   if (!tokenPresent.value) {
@@ -187,12 +191,20 @@ async function logout() {
               <p v-if="currentAccessibleSession.schoolyear_label" class="mt-1 text-sm text-white/85">
                 Schuljahr {{ currentAccessibleSession.schoolyear_label }}
               </p>
-              <RouterLink
-                :to="boardLink(currentAccessibleSession.id)"
-                class="mt-4 inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50"
-              >
-                Zur Themensliste
-              </RouterLink>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <RouterLink
+                  :to="boardLink(currentAccessibleSession.id)"
+                  class="inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50"
+                >
+                  Zur Themensliste
+                </RouterLink>
+                <RouterLink
+                  :to="bookingsLink(currentAccessibleSession.id)"
+                  class="inline-flex items-center rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm backdrop-blur-sm transition hover:bg-white/20"
+                >
+                  Meine Buchungen
+                </RouterLink>
+              </div>
             </section>
 
             <section
@@ -218,12 +230,20 @@ async function logout() {
                       </span>
                     </p>
                   </div>
-                  <RouterLink
-                    :to="boardLink(s.id)"
-                    class="inline-flex rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-                  >
-                    Themensliste
-                  </RouterLink>
+                  <div class="flex flex-wrap gap-2">
+                    <RouterLink
+                      :to="boardLink(s.id)"
+                      class="inline-flex rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+                    >
+                      Themensliste
+                    </RouterLink>
+                    <RouterLink
+                      :to="bookingsLink(s.id)"
+                      class="inline-flex rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
+                    >
+                      Meine Buchungen
+                    </RouterLink>
+                  </div>
                 </li>
               </ul>
             </section>
