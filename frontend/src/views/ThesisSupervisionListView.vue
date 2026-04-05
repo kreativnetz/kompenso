@@ -279,7 +279,7 @@ watch(
             <span>Spaltenköpfe 2–4 sortieren; Spalte 2 schaltet auf Ansicht pro Klasse.</span>
           </div>
           <div class="overflow-x-auto rounded-xl border border-ink-200">
-            <table class="sl-table sl-table-fixed w-full border-collapse text-left text-sm">
+            <table class="sl-table sl-table-fixed w-full border-collapse text-left text-xs">
               <colgroup>
                 <col class="sl-col-6" />
                 <col class="sl-col-4" />
@@ -288,23 +288,23 @@ watch(
               </colgroup>
               <thead>
                 <tr class="border-b border-ink-200 bg-ink-50">
-                  <th class="sl-th border border-ink-200 px-3 py-2 font-semibold text-ink-800">
+                  <th class="sl-th border border-ink-200 px-2 py-1 font-semibold text-ink-800">
                     Titel der Arbeit
                   </th>
                   <th
-                    class="sl-th border border-ink-200 px-3 py-2 font-semibold text-ink-800 cursor-pointer select-none hover:bg-ink-100/80"
+                    class="sl-th border border-ink-200 px-2 py-1 font-semibold text-ink-800 cursor-pointer select-none hover:bg-ink-100/80"
                     @click="toggleSort(2)"
                   >
                     Lernende
                   </th>
                   <th
-                    class="sl-th border border-ink-200 px-3 py-2 font-semibold text-ink-800 cursor-pointer select-none hover:bg-ink-100/80"
+                    class="sl-th border border-ink-200 px-2 py-1 font-semibold text-ink-800 cursor-pointer select-none hover:bg-ink-100/80"
                     @click="toggleSort(3)"
                   >
                     HB
                   </th>
                   <th
-                    class="sl-th border border-ink-200 px-3 py-2 font-semibold text-ink-800 cursor-pointer select-none hover:bg-ink-100/80"
+                    class="sl-th border border-ink-200 px-2 py-1 font-semibold text-ink-800 cursor-pointer select-none hover:bg-ink-100/80"
                     @click="toggleSort(4)"
                   >
                     GB
@@ -313,18 +313,18 @@ watch(
               </thead>
               <tbody>
                 <tr v-for="row in thesisRows" :key="row.thesisId" class="sl-tr border-b border-ink-100 odd:bg-white even:bg-ink-50/40">
-                  <td class="border border-ink-200 px-3 py-2 align-top text-ink-900">{{ row.title }}</td>
-                  <td class="border border-ink-200 px-3 py-2 align-top text-ink-800">
+                  <td class="border border-ink-200 px-2 py-1 align-top text-ink-900">{{ row.title }}</td>
+                  <td class="border border-ink-200 px-2 py-1 align-top text-ink-800">
                     <template v-for="(a, ai) in row.authors" :key="ai">
                       <br v-if="ai > 0" />
-                      {{ authorFullName(a) }}
+                      {{ authorFullName(a) }}, {{ a.class }}
                     </template>
                     <template v-if="!row.authors?.length">—</template>
                   </td>
-                  <td class="border border-ink-200 px-3 py-2 align-top font-mono text-sm text-ink-800">
+                  <td class="border border-ink-200 px-2 py-1 align-top">
                     {{ row.main || '—' }}
                   </td>
-                  <td class="border border-ink-200 px-3 py-2 align-top font-mono text-sm text-ink-800">
+                  <td class="border border-ink-200 px-2 py-1 align-top">
                     {{ row.secondary || '—' }}
                   </td>
                 </tr>
