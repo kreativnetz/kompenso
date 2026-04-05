@@ -145,18 +145,12 @@ class TeacherThesisBoardController extends Controller
             abort(404);
         }
 
+        $this->assertThesisSupervisionReportsAccess($request);
         $this->assertTeacherBoardSessionAccess($request, $thesisSession, $now);
-
-        $teacher = $request->user();
-        $isAdmin = (int) $teacher->status >= 3;
 
         $theses = Thesis::query()
             ->where('session', $thesisSession->id)
-            ->when(
-                $isAdmin,
-                fn ($q) => $q->whereIn('status', [1, 2]),
-                fn ($q) => $q->where('status', 2),
-            )
+            ->whereIn('status', [1, 2])
             ->with(['authors', 'supervisions.teacherModel'])
             ->get();
 
@@ -192,6 +186,85 @@ class TeacherThesisBoardController extends Controller
         return response()->json([
             'thesis_session' => $this->sessionSummaryPayload($thesisSession, $now),
             'items' => array_values($items),
+        ]);
+    }
+
+    public function teacherSupervisionOverview(Request $request, ThesisSession $thesisSession)
+    {
+        $now = Carbon::now();
+
+        if (! $thesisSession->schoolyear_id) {
+            abort(404);
+        }
+
+        $this->assertThesisSupervisionReportsAccess($request);
+        $this->assertTeacherBoardSessionAccess($request, $thesisSession, $now);
+
+        $theses = Thesis::query()
+            ->where('session', $thesisSession->id)
+            ->whereIn('status', [1, 2])
+            ->with(['supervisions.teacherModel'])
+            ->get();
+
+        $withMain = 0;
+        $withSecondary = 0;
+        /** @var array<int, array{main: int, secondary: int}> */
+        $countsByTeacher = [];
+
+        foreach ($theses as $t) {
+            $main = $this->activeSupervisionSlotPayload($t, 1);
+            $sec = $this->activeSupervisionSlotPayload($t, 2);
+
+            if ($main !== null) {
+                $withMain++;
+                $tid = (int) $main['teacher_id'];
+                if (! isset($countsByTeacher[$tid])) {
+                    $countsByTeacher[$tid] = ['main' => 0, 'secondary' => 0];
+                }
+                $countsByTeacher[$tid]['main']++;
+            }
+            if ($sec !== null) {
+                $withSecondary++;
+                $tid = (int) $sec['teacher_id'];
+                if (! isset($countsByTeacher[$tid])) {
+                    $countsByTeacher[$tid] = ['main' => 0, 'secondary' => 0];
+                }
+                $countsByTeacher[$tid]['secondary']++;
+            }
+        }
+
+        $total = $theses->count();
+
+        $teachers = Teacher::query()
+            ->where('status', '>', 0)
+            ->orderBy('token')
+            ->get()
+            ->map(function (Teacher $t) use ($countsByTeacher) {
+                $c = $countsByTeacher[(int) $t->id] ?? ['main' => 0, 'secondary' => 0];
+
+                return [
+                    'id' => $t->id,
+                    'token' => $t->token,
+                    'first_name' => $t->first_name,
+                    'last_name' => $t->last_name,
+                    'full_name' => $t->fullName(),
+                    'main_count' => $c['main'],
+                    'secondary_count' => $c['secondary'],
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json([
+            'thesis_session' => $this->sessionSummaryPayload($thesisSession, $now),
+            'summary' => [
+                'total_theses' => $total,
+                'with_main_supervision' => $withMain,
+                'with_secondary_supervision' => $withSecondary,
+                'missing_main' => max(0, $total - $withMain),
+                'missing_secondary' => max(0, $total - $withSecondary),
+            ],
+            'teachers' => $teachers,
         ]);
     }
 
@@ -608,6 +681,13 @@ class TeacherThesisBoardController extends Controller
             'is_past' => ThesisSessionPhase::isSessionPast($session, $now),
             'is_active_for_board' => ThesisSessionPhase::isActiveForFullList($session, $now),
         ];
+    }
+
+    private function assertThesisSupervisionReportsAccess(Request $request): void
+    {
+        if ((int) $request->user()->status < 3) {
+            abort(403, 'Betreuungsliste und Lehrpersonenübersicht sind nur für Schulleitung und Administrator.');
+        }
     }
 
     private function assertTeacherBoardSessionAccess(Request $request, ThesisSession $thesisSession, Carbon $now): void

@@ -67,6 +67,10 @@ function supervisionListLink(sessionId) {
   return { name: 'thesis-supervision-list', query: { thesis_session_id: String(sessionId) } }
 }
 
+function teachersOverviewLink(sessionId) {
+  return { name: 'thesis-teachers-overview', query: { thesis_session_id: String(sessionId) } }
+}
+
 async function goToEditWithCode() {
   editCodeError.value = ''
   const code = editCodeInput.value.trim()
@@ -303,10 +307,18 @@ async function logout() {
                   Meine Buchungen
                 </RouterLink>
                 <RouterLink
+                  v-if="canManageTeachers"
                   :to="supervisionListLink(currentAccessibleSession.id)"
                   class="inline-flex items-center rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm backdrop-blur-sm transition hover:bg-white/20"
                 >
                   Betreuungsliste
+                </RouterLink>
+                <RouterLink
+                  v-if="canManageTeachers"
+                  :to="teachersOverviewLink(currentAccessibleSession.id)"
+                  class="inline-flex items-center rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm backdrop-blur-sm transition hover:bg-white/20"
+                >
+                  Lehrpersonen
                 </RouterLink>
               </div>
             </section>

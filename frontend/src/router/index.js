@@ -11,6 +11,7 @@ const ThesisSubmitView = () => import('../views/ThesisSubmitView.vue')
 const ThesisTeacherBoardView = () => import('../views/ThesisTeacherBoardView.vue')
 const ThesisMyBookingsView = () => import('../views/ThesisMyBookingsView.vue')
 const ThesisSupervisionListView = () => import('../views/ThesisSupervisionListView.vue')
+const ThesisTeachersOverviewView = () => import('../views/ThesisTeachersOverviewView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -65,6 +66,13 @@ const router = createRouter({
       path: '/arbeiten/betreuungsliste',
       name: 'thesis-supervision-list',
       component: ThesisSupervisionListView,
+      meta: { requiresManager: true },
+    },
+    {
+      path: '/arbeiten/lehrpersonen',
+      name: 'thesis-teachers-overview',
+      component: ThesisTeachersOverviewView,
+      meta: { requiresManager: true },
     },
   ],
 })
@@ -83,17 +91,6 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 
-  if (
-    to.name === 'thesis-teacher-board' ||
-    to.name === 'thesis-my-bookings' ||
-    to.name === 'thesis-supervision-list'
-  ) {
-    const q = to.query.thesis_session_id
-    if (q == null || String(q).trim() === '') {
-      return { name: 'home', query: { board_missing: '1' } }
-    }
-  }
-
   if (to.meta.requiresManager) {
     let user = getUser()
     if (!user?.abilities) {
@@ -108,6 +105,18 @@ router.beforeEach(async (to) => {
     }
     if (!user.abilities?.manage_teachers) {
       return { name: 'home' }
+    }
+  }
+
+  if (
+    to.name === 'thesis-teacher-board' ||
+    to.name === 'thesis-my-bookings' ||
+    to.name === 'thesis-supervision-list' ||
+    to.name === 'thesis-teachers-overview'
+  ) {
+    const q = to.query.thesis_session_id
+    if (q == null || String(q).trim() === '') {
+      return { name: 'home', query: { board_missing: '1' } }
     }
   }
 

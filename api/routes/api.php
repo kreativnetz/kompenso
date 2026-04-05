@@ -42,6 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/thesis-sessions/{thesisSession}/teacher-board', [TeacherThesisBoardController::class, 'teacherBoard']);
     Route::get('/thesis-sessions/{thesisSession}/supervision-list', [TeacherThesisBoardController::class, 'supervisionList']);
+    Route::get('/thesis-sessions/{thesisSession}/teacher-supervision-overview', [TeacherThesisBoardController::class, 'teacherSupervisionOverview']);
     Route::get('/thesis-sessions/{thesisSession}/my-bookings', [TeacherThesisBoardController::class, 'myBookings']);
     Route::post('/thesis-sessions/{thesisSession}/theses/{thesis}/workflow-status', [TeacherThesisBoardController::class, 'setThesisWorkflowStatus']);
     Route::post('/thesis-sessions/{thesisSession}/supervisions', [TeacherThesisBoardController::class, 'storeSupervision']);

@@ -89,6 +89,9 @@ export const api = {
   thesisSessionSupervisionList(sessionId) {
     return request(`/thesis-sessions/${sessionId}/supervision-list`)
   },
+  thesisSessionTeacherOverview(sessionId) {
+    return request(`/thesis-sessions/${sessionId}/teacher-supervision-overview`)
+  },
   thesisSessionMyBookings(sessionId) {
     return request(`/thesis-sessions/${sessionId}/my-bookings`)
   },
