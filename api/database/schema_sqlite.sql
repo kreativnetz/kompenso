@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS teachers (
   first_name VARCHAR(50) NOT NULL,
   token VARCHAR(7) NOT NULL,
   email VARCHAR(50) NOT NULL,
-  password VARCHAR(255) NOT NULL,
+  password VARCHAR(6) NOT NULL,
   status INTEGER NOT NULL DEFAULT 1
 );
 

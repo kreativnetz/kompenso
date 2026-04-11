@@ -48,10 +48,10 @@ async function submit() {
       </div>
       <h1 class="text-center text-2xl font-bold tracking-tight text-ink-900">Anmelden</h1>
       <p class="mt-2 text-center text-sm text-ink-500">
-        Kürzel und Passwort
+        Kürzel und Passwort (6 Zeichen)
         <span class="text-ink-400">·</span>
         Demo:
-        <code class="rounded-md bg-ink-100 px-1.5 py-0.5 font-mono text-xs text-ink-800">password</code>
+        <code class="rounded-md bg-ink-100 px-1.5 py-0.5 font-mono text-xs text-ink-800">devpwd</code>
       </p>
 
       <form class="mt-8 flex flex-col gap-5" @submit.prevent="submit">
@@ -72,9 +72,10 @@ async function submit() {
             id="login-pass"
             v-model="password"
             type="password"
+            maxlength="6"
             autocomplete="current-password"
             required
-            class="w-full rounded-xl border-0 bg-ink-50 px-4 py-3 text-ink-900 shadow-inner ring-1 ring-ink-200/80 transition focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+            class="w-full rounded-xl border-0 bg-ink-50 px-4 py-3 font-mono tracking-widest text-ink-900 shadow-inner ring-1 ring-ink-200/80 transition focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
           />
         </div>
         <p v-if="error" class="text-sm font-medium text-rose-600">{{ error }}</p>

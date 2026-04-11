@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Teacher;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -14,7 +13,7 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'token' => ['required', 'string', 'max:32'],
-            'password' => ['required', 'string'],
+            'password' => ['required', 'string', 'size:6'],
         ]);
 
         $teacher = Teacher::query()
@@ -27,7 +26,8 @@ class AuthController extends Controller
             ]);
         }
 
-        if (! Hash::check($data['password'], $teacher->password)) {
+        $stored = (string) $teacher->password;
+        if (! hash_equals($stored, $data['password'])) {
             throw ValidationException::withMessages([
                 'token' => ['Ungültige Zugangsdaten.'],
             ]);

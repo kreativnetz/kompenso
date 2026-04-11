@@ -7,7 +7,7 @@ use Illuminate\Database\Seeder;
 
 class TeacherSeeder extends Seeder
 {
-    /** Dummy-Lehrpersonen je Rolle. Passwort für alle: password */
+    /** Dummy-Lehrpersonen je Rolle. Passwort für alle: 6 Zeichen Klartext (wie Legacy). */
     public function run(): void
     {
         $rows = [
@@ -26,7 +26,7 @@ class TeacherSeeder extends Seeder
                     'last_name' => $row['last_name'],
                     'email' => $row['email'],
                     'status' => $row['status'],
-                    'password' => 'password',
+                    'password' => 'devpwd',
                 ]
             );
         }

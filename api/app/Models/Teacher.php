@@ -28,7 +28,6 @@ class Teacher extends Authenticatable
     ];
 
     protected $casts = [
-        'password' => 'hashed',
         'status' => 'integer',
     ];
 
