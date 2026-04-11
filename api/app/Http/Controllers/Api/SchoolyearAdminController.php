@@ -202,12 +202,29 @@ class SchoolyearAdminController extends Controller
 
             $examYear = array_key_exists('exam_year', $raw) ? (int) $raw['exam_year'] : 0;
 
+            $defaultAuthorRules = ['1' => 0, '2' => 0, '3' => 0];
+            $darRaw = $raw['default_author_rules'] ?? null;
+            if (is_array($darRaw)) {
+                foreach (['1', '2', '3'] as $nk) {
+                    if (! array_key_exists($nk, $darRaw) && ! array_key_exists((int) $nk, $darRaw)) {
+                        continue;
+                    }
+                    $v = $darRaw[$nk] ?? $darRaw[(int) $nk] ?? null;
+                    if ($v === null || $v === '') {
+                        continue;
+                    }
+                    $iv = (int) $v;
+                    $defaultAuthorRules[$nk] = max(0, min(2, $iv));
+                }
+            }
+
             $out[$key] = [
                 'name' => is_string($raw['name'] ?? null) ? trim($raw['name']) : '',
                 'prefix' => is_string($raw['prefix'] ?? null) ? trim($raw['prefix']) : '',
                 'terms' => (int) ($raw['terms'] ?? 0),
                 'exam_year' => $examYear,
                 'finish_class_count' => $finishCount,
+                'default_author_rules' => $defaultAuthorRules,
             ];
         }
 
@@ -265,6 +282,25 @@ class SchoolyearAdminController extends Controller
                 throw ValidationException::withMessages([
                     'sections' => ["Abteilung „{$key}“: „finish_class_count“ muss zwischen 1 und 26 liegen."],
                 ]);
+            }
+
+            if (! isset($data['default_author_rules']) || ! is_array($data['default_author_rules'])) {
+                throw ValidationException::withMessages([
+                    'sections' => ["Abteilung „{$key}“: „default_author_rules“ ist erforderlich."],
+                ]);
+            }
+            foreach (['1', '2', '3'] as $nk) {
+                if (! array_key_exists($nk, $data['default_author_rules'])) {
+                    throw ValidationException::withMessages([
+                        'sections' => ["Abteilung „{$key}“: „default_author_rules“ muss Schlüssel 1, 2 und 3 enthalten."],
+                    ]);
+                }
+                $dv = (int) $data['default_author_rules'][$nk];
+                if ($dv < 0 || $dv > 2) {
+                    throw ValidationException::withMessages([
+                        'sections' => ["Abteilung „{$key}“: Standard Autorenregeln (1/2/3) müssen 0, 1 oder 2 sein."],
+                    ]);
+                }
             }
         }
     }

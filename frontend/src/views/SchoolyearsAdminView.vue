@@ -8,6 +8,27 @@ const router = useRouter()
 
 const KEY_RE = /^[a-z0-9_]+$/
 
+/** Gleiche Bedeutung wie in ThesisSessionsAdminView: 0 Nein, 1 Ja, 2 Bewilligung */
+const AUTHOR_RULE_OPTIONS = [
+  { value: 0, label: 'Nein' },
+  { value: 1, label: 'Ja' },
+  { value: 2, label: 'Bewilligung' },
+]
+
+function parseDefaultAuthorRules(section) {
+  const raw = section?.default_author_rules
+  const out = { 1: 0, 2: 0, 3: 0 }
+  if (raw && typeof raw === 'object') {
+    for (const n of [1, 2, 3]) {
+      const v = raw[String(n)] ?? raw[n]
+      if (v !== undefined && v !== '' && Number.isFinite(Number(v))) {
+        out[n] = Math.max(0, Math.min(2, Number(v)))
+      }
+    }
+  }
+  return out
+}
+
 function emptySectionRow() {
   return {
     key: '',
@@ -16,6 +37,7 @@ function emptySectionRow() {
     terms: '',
     exam_year: '',
     finish_class_count: 1,
+    default_author_rules: { 1: 0, 2: 0, 3: 0 },
   }
 }
 
@@ -57,6 +79,7 @@ function sectionsListFromApi(sections) {
       terms: s.terms !== undefined && s.terms !== '' ? Number(s.terms) : '',
       exam_year: Number.isFinite(ey) ? ey : '',
       finish_class_count: finish,
+      default_author_rules: parseDefaultAuthorRules(s),
     }
   })
 }
@@ -77,12 +100,18 @@ function sectionsToApi(list) {
       fc = 1
     }
     fc = Math.min(26, fc)
+    const dar = row.default_author_rules || { 1: 0, 2: 0, 3: 0 }
     out[k] = {
       name: String(row.name || '').trim(),
       prefix: String(row.prefix || '').trim(),
       terms: Number.isFinite(terms) ? terms : 0,
       exam_year: Number.isFinite(ey) ? ey : 0,
       finish_class_count: fc,
+      default_author_rules: {
+        1: Math.max(0, Math.min(2, Number(dar[1]) || 0)),
+        2: Math.max(0, Math.min(2, Number(dar[2]) || 0)),
+        3: Math.max(0, Math.min(2, Number(dar[3]) || 0)),
+      },
     }
   }
   return out
@@ -137,6 +166,14 @@ function validateSectionsList(list) {
     let fc = parseInt(row.finish_class_count, 10)
     if (!Number.isFinite(fc) || fc < 1 || fc > 26) {
       return `Abteilung „${k}“: Anzahl Abschlussklassen 1–26.`
+    }
+    const dar = row.default_author_rules || {}
+    for (const n of [1, 2, 3]) {
+      const rv = dar[n]
+      const rvn = rv === undefined || rv === '' ? NaN : Number(rv)
+      if (!Number.isFinite(rvn) || rvn < 0 || rvn > 2) {
+        return `Abteilung „${k}“: Standard Themeneingabe (${n} Autor(en)) muss 0–2 sein.`
+      }
     }
   }
   if (!any) {
@@ -765,6 +802,34 @@ onMounted(async () => {
                         max="26"
                         class="w-full rounded border border-ink-200 bg-white px-2 py-1.5 text-sm text-ink-900"
                       />
+                    </div>
+                  </div>
+                  <div class="mt-2 border-t border-ink-100 pt-2">
+                    <p class="mb-0.5 text-[11px] font-medium text-ink-700">Autorenanzahl</p>
+                    <div class="overflow-x-auto rounded border border-ink-200/80 bg-white">
+                      <table class="w-full min-w-[200px] border-collapse text-xs">
+                        <thead>
+                          <tr class="border-b border-ink-100 bg-ink-50/80">
+                            <th class="px-1.5 py-1 text-center font-semibold text-ink-800">1 Autor</th>
+                            <th class="px-1.5 py-1 text-center font-semibold text-ink-800">2 Autoren</th>
+                            <th class="px-1.5 py-1 text-center font-semibold text-ink-800">3 Autoren</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td v-for="n in [1, 2, 3]" :key="n" class="px-1 py-1">
+                              <select
+                                v-model.number="row.default_author_rules[n]"
+                                class="w-full min-w-[4.5rem] rounded border border-ink-200 bg-white px-1 py-1 text-ink-900"
+                              >
+                                <option v-for="opt in AUTHOR_RULE_OPTIONS" :key="opt.value" :value="opt.value">
+                                  {{ opt.label }}
+                                </option>
+                              </select>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                   <p class="mt-2 text-[11px] leading-snug text-ink-500">

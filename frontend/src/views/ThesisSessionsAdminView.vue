@@ -145,11 +145,27 @@ function sectionKeysForYearId(yearId) {
   return Object.keys(y.sections)
 }
 
+/** Standard Autorenregeln aus Schuljahr (sections[].default_author_rules), sonst 0. */
+function authorDefaultsForSection(yearId, sk) {
+  const y = schoolyearById(yearId)
+  const raw = y?.sections?.[sk]?.default_author_rules
+  const out = { 1: 0, 2: 0, 3: 0 }
+  if (raw && typeof raw === 'object') {
+    for (const n of [1, 2, 3]) {
+      const v = raw[String(n)] ?? raw[n]
+      if (v !== undefined && v !== '') {
+        out[n] = Math.max(0, Math.min(2, Number(v)))
+      }
+    }
+  }
+  return out
+}
+
 function buildMatrixFromRules(yearId, rules) {
   const keys = sectionKeysForYearId(yearId)
   const m = {}
   for (const sk of keys) {
-    m[sk] = { 1: 0, 2: 0, 3: 0 }
+    m[sk] = { ...authorDefaultsForSection(yearId, sk) }
     const r = rules?.[sk]
     if (r && typeof r === 'object') {
       for (const n of [1, 2, 3]) {
@@ -167,7 +183,7 @@ function mergeMatrixPreserve(prev, yearId) {
   const keys = sectionKeysForYearId(yearId)
   const m = {}
   for (const sk of keys) {
-    m[sk] = { 1: 0, 2: 0, 3: 0 }
+    m[sk] = { ...authorDefaultsForSection(yearId, sk) }
     if (prev?.[sk]) {
       for (const n of [1, 2, 3]) {
         const v = prev[sk][n]
@@ -709,45 +725,24 @@ onMounted(async () => {
 
             <div class="border-t border-ink-100 pt-2">
               <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500">
-                Themeneingabe (Lernende)
+                Themeneingabe &amp; Autorenregeln (Lernende)
               </p>
               <p class="mb-2 text-xs leading-snug text-ink-600">
-                Nur angehakte Abteilungen erscheinen in der öffentlichen Maske (während des Einschreibefensters).
+                Nur angehakte Abteilungen erscheinen in der öffentlichen Maske (während des Einschreibefensters). Gilt
+                nicht für die Betreuung durch Lehrpersonen. Pro aktivierter Abteilung und Anzahl Lernende: 0 = Einreichen
+                nicht erlaubt, 1 = Arbeit sofort aktiv (Thesis-Status „bewilligt“), 2 = bewilligungspflichtig
+                (Thesis-Status „ausstehend“ bis Rektorat auf der Themensliste freigibt oder ablehnt).
               </p>
               <div v-if="sectionKeys.length === 0" class="rounded border border-ink-100 bg-ink-50/50 px-2 py-2 text-xs text-ink-600">
                 Keine Abteilungen im gewählten Schuljahr.
               </div>
-              <ul v-else class="space-y-1.5 rounded-lg border border-ink-100 bg-ink-50/40 px-2.5 py-2">
-                <li v-for="sk in sectionKeys" :key="'sub-' + sk" class="flex items-center gap-2">
-                  <input
-                    :id="'subsec-' + sk"
-                    v-model="form.submissionSectionsOpen[sk]"
-                    type="checkbox"
-                    class="rounded border-ink-300 text-teal-600 focus:ring-teal-500"
-                  />
-                  <label :for="'subsec-' + sk" class="cursor-pointer font-mono text-xs font-medium text-ink-900">
-                    {{ sk }}
-                  </label>
-                </li>
-              </ul>
-            </div>
-
-            <div class="border-t border-ink-100 pt-2">
-              <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500">
-                Autorenregeln nur für die Themeneingabe (Lernende)
-              </p>
-              <p class="mb-2 text-xs leading-snug text-ink-600">
-                Gilt nicht für die Betreuung durch Lehrpersonen. Pro Abteilung und Anzahl Lernende: 0 = Einreichen nicht
-                erlaubt, 1 = Arbeit sofort aktiv (Thesis-Status „bewilligt“), 2 = bewilligungspflichtig (Thesis-Status
-                „ausstehend“ bis Rektorat auf der Themensliste freigibt oder ablehnt).
-              </p>
-              <div v-if="sectionKeys.length === 0" class="rounded border border-ink-100 bg-ink-50/50 px-2 py-2 text-xs text-ink-600">
-                Keine Abteilungen im gewählten Schuljahr — bitte Schuljahr bearbeiten.
-              </div>
               <div v-else class="overflow-x-auto rounded-lg border border-ink-100">
-                <table class="w-full min-w-[280px] border-collapse text-xs">
+                <table class="w-full min-w-[320px] border-collapse text-xs">
                   <thead>
                     <tr class="border-b border-ink-200 bg-ink-50/80">
+                      <th class="w-9 px-1 py-1.5" scope="col">
+                        <span class="sr-only">In öffentlicher Themeneingabe</span>
+                      </th>
                       <th class="px-2 py-1.5 text-left font-semibold text-ink-800">Abteilung</th>
                       <th class="px-1 py-1.5 text-center font-semibold text-ink-800">1 Autor</th>
                       <th class="px-1 py-1.5 text-center font-semibold text-ink-800">2</th>
@@ -756,16 +751,31 @@ onMounted(async () => {
                   </thead>
                   <tbody>
                     <tr v-for="sk in sectionKeys" :key="sk" class="border-b border-ink-100 last:border-0">
-                      <td class="px-2 py-1 font-mono font-medium text-ink-900">{{ sk }}</td>
-                      <td v-for="n in [1, 2, 3]" :key="n" class="px-1 py-1">
-                        <select
-                          v-model.number="form.authorMatrix[sk][n]"
-                          class="w-full min-w-[4.5rem] rounded border border-ink-200 bg-white px-1 py-1 text-ink-900"
-                        >
-                          <option v-for="opt in RULE_OPTIONS" :key="opt.value" :value="opt.value">
-                            {{ opt.label }}
-                          </option>
-                        </select>
+                      <td class="px-1 py-1 align-middle text-center">
+                        <input
+                          :id="'subsec-' + sk"
+                          v-model="form.submissionSectionsOpen[sk]"
+                          type="checkbox"
+                          class="rounded border-ink-300 text-teal-600 focus:ring-teal-500"
+                        />
+                      </td>
+                      <td class="px-2 py-1 align-middle">
+                        <label :for="'subsec-' + sk" class="cursor-pointer font-mono text-xs font-medium text-ink-900">
+                          {{ sk }}
+                        </label>
+                      </td>
+                      <td v-for="n in [1, 2, 3]" :key="n" class="px-1 py-1 align-middle">
+                        <template v-if="form.submissionSectionsOpen[sk]">
+                          <select
+                            v-model.number="form.authorMatrix[sk][n]"
+                            class="w-full min-w-[4.5rem] rounded border border-ink-200 bg-white px-1 py-1 text-ink-900"
+                          >
+                            <option v-for="opt in RULE_OPTIONS" :key="opt.value" :value="opt.value">
+                              {{ opt.label }}
+                            </option>
+                          </select>
+                        </template>
+                        <span v-else class="block text-center tabular-nums text-ink-400">—</span>
                       </td>
                     </tr>
                   </tbody>
