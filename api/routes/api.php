@@ -40,6 +40,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/thesis-sessions', [ThesisSessionAdminController::class, 'store']);
     Route::patch('/thesis-sessions/{thesisSession}', [ThesisSessionAdminController::class, 'update']);
     Route::delete('/thesis-sessions/{thesisSession}', [ThesisSessionAdminController::class, 'destroy']);
+    Route::get('/thesis-sessions/{thesisSession}/excel-export', [ThesisSessionAdminController::class, 'excelExport']);
+    Route::post('/thesis-sessions/{thesisSession}/close', [ThesisSessionAdminController::class, 'closeSession']);
 
     Route::get('/thesis-sessions/{thesisSession}/teacher-board', [TeacherThesisBoardController::class, 'teacherBoard']);
     Route::get('/thesis-sessions/{thesisSession}/supervision-list', [TeacherThesisBoardController::class, 'supervisionList']);

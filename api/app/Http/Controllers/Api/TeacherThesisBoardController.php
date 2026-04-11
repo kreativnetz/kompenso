@@ -8,6 +8,7 @@ use App\Models\Teacher;
 use App\Models\Thesis;
 use App\Models\ThesisSession;
 use App\Services\ThesisSessionPhase;
+use App\Support\ThesisSupervisionHelper;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -135,8 +136,8 @@ class TeacherThesisBoardController extends Controller
             ->get();
 
         $items = $theses->map(function (Thesis $t) {
-            $main = $this->activeSupervisionSlotPayload($t, 1);
-            $sec = $this->activeSupervisionSlotPayload($t, 2);
+            $main = ThesisSupervisionHelper::activeSupervisionSlotPayload($t, 1);
+            $sec = ThesisSupervisionHelper::activeSupervisionSlotPayload($t, 2);
 
             return [
                 'thesis_id' => $t->id,
@@ -192,8 +193,8 @@ class TeacherThesisBoardController extends Controller
         $countsByTeacher = [];
 
         foreach ($theses as $t) {
-            $main = $this->activeSupervisionSlotPayload($t, 1);
-            $sec = $this->activeSupervisionSlotPayload($t, 2);
+            $main = ThesisSupervisionHelper::activeSupervisionSlotPayload($t, 1);
+            $sec = ThesisSupervisionHelper::activeSupervisionSlotPayload($t, 2);
 
             if ($main !== null) {
                 $withMain++;
@@ -307,7 +308,7 @@ class TeacherThesisBoardController extends Controller
                 } else {
                     $secondaryCount++;
                 }
-                $amount = $this->compensationAmountForRole($compensation, $authorCount, $type);
+                $amount = ThesisSupervisionHelper::compensationAmountForRole($compensation, $authorCount, $type);
                 if ($amount !== null) {
                     $compSum += $amount;
                 }
@@ -649,33 +650,8 @@ class TeacherThesisBoardController extends Controller
                 'last_name' => $a->last_name,
                 'class' => $a->class,
             ])->values()->all(),
-            'main_supervision' => $this->activeSupervisionSlotPayload($thesis, 1),
-            'secondary_supervision' => $this->activeSupervisionSlotPayload($thesis, 2),
-        ];
-    }
-
-    /**
-     * Eine besetzte Rolle pro Typ; Legacy-Zeilen mit status 1 werden weiterhin angezeigt, bis Admin bereinigt.
-     *
-     * @return array{id: int, teacher_id: int, teacher_token: string}|null
-     */
-    private function activeSupervisionSlotPayload(Thesis $thesis, int $type): ?array
-    {
-        $candidates = $thesis->supervisions
-            ->where('type', $type)
-            ->filter(fn (Supervision $s) => in_array((int) $s->status, [1, 2], true))
-            ->sortBy(fn (Supervision $s) => (int) $s->status === 2 ? 0 : 1)
-            ->values();
-
-        $s = $candidates->first();
-        if ($s === null) {
-            return null;
-        }
-
-        return [
-            'id' => $s->id,
-            'teacher_id' => (int) $s->teacher,
-            'teacher_token' => (string) ($s->teacherModel?->token ?? ''),
+            'main_supervision' => ThesisSupervisionHelper::activeSupervisionSlotPayload($thesis, 1),
+            'secondary_supervision' => ThesisSupervisionHelper::activeSupervisionSlotPayload($thesis, 2),
         ];
     }
 
@@ -741,25 +717,6 @@ class TeacherThesisBoardController extends Controller
         }
 
         return $name;
-    }
-
-    /**
-     * @param  array<string, mixed>  $compensation
-     */
-    private function compensationAmountForRole(array $compensation, int $authorCount, int $type): ?float
-    {
-        $key = $type === 1 ? 'haupt' : 'gegen';
-        $row = $compensation[$key] ?? null;
-        if (! is_array($row)) {
-            return null;
-        }
-        $slot = (string) max(1, min(3, $authorCount));
-        $raw = $row[$slot] ?? $row[(int) $slot] ?? null;
-        if ($raw === null || $raw === '') {
-            return null;
-        }
-
-        return round((float) $raw, 4);
     }
 
     private function otherActiveSupervisorForThesis(Thesis $thesis, int $myType, int $viewerTeacherId): ?array

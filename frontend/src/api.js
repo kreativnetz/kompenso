@@ -60,6 +60,14 @@ export const api = {
   deleteThesisSession(id) {
     return request(`/thesis-sessions/${id}`, { method: 'DELETE' })
   },
+  thesisSessionExcelExport(sessionId) {
+    return request(`/thesis-sessions/${sessionId}/excel-export`, {
+      headers: { Accept: 'text/plain,*/*' },
+    })
+  },
+  thesisSessionClose(sessionId) {
+    return request(`/thesis-sessions/${sessionId}/close`, { method: 'POST' })
+  },
   thesisSubmissionContext(params = {}) {
     const q = new URLSearchParams()
     if (params.thesis_session_id != null && params.thesis_session_id !== '') {

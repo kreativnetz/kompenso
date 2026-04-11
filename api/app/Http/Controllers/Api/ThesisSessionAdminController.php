@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Schoolyear;
+use App\Models\Thesis;
 use App\Models\ThesisSession;
+use App\Support\ThesisSupervisionHelper;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -93,6 +96,100 @@ class ThesisSessionAdminController extends Controller
         $thesisSession->delete();
 
         return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Legacy-Export wie tool_1/excel.php: TSV ohne Kopfzeile, eine Zeile pro Autor.
+     */
+    public function excelExport(Request $request, ThesisSession $thesisSession)
+    {
+        $this->ensureManager($request);
+
+        if (! $thesisSession->schoolyear_id) {
+            abort(404);
+        }
+
+        $thesisSession->load('schoolyear');
+        $sectionsMeta = $thesisSession->schoolyear?->sections;
+        if (! is_array($sectionsMeta)) {
+            $sectionsMeta = [];
+        }
+
+        $yearLabel = (string) ($thesisSession->schoolyear?->label ?? '');
+        $compensation = is_array($thesisSession->compensation) ? $thesisSession->compensation : [];
+
+        $theses = Thesis::query()
+            ->where('session', $thesisSession->id)
+            ->whereIn('status', [1, 2])
+            ->with([
+                'authors' => fn ($q) => $q->orderBy('id'),
+                'supervisions.teacherModel',
+            ])
+            ->orderBy('section')
+            ->get();
+
+        $lines = [];
+        $prevThesisId = 0;
+
+        foreach ($theses as $thesis) {
+            $mainSlot = ThesisSupervisionHelper::activeSupervisionSlotPayload($thesis, 1);
+            $secSlot = ThesisSupervisionHelper::activeSupervisionSlotPayload($thesis, 2);
+            $haupt = (string) ($mainSlot['teacher_token'] ?? '');
+            $gegen = (string) ($secSlot['teacher_token'] ?? '');
+            $authorCount = $thesis->authors->count();
+            $amtMain = ThesisSupervisionHelper::compensationAmountForRole($compensation, $authorCount, 1);
+            $amtSec = ThesisSupervisionHelper::compensationAmountForRole($compensation, $authorCount, 2);
+
+            $sk = strtolower((string) $thesis->section);
+            $secPrefix = ThesisSupervisionHelper::sectionExcelPrefix($sk, $sectionsMeta);
+
+            foreach ($thesis->authors as $author) {
+                $showMainComp = $haupt !== '' && $prevThesisId !== (int) $thesis->id;
+                $showSecComp = $gegen !== '' && $prevThesisId !== (int) $thesis->id;
+
+                $cells = [
+                    $yearLabel,
+                    (string) $thesis->id,
+                    $thesis->title,
+                    $thesis->description,
+                    trim($author->first_name.' '.$author->last_name),
+                    $secPrefix,
+                    $author->class,
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    $haupt,
+                    $showMainComp ? ThesisSupervisionHelper::formatCompensationCell($amtMain) : '',
+                    $gegen,
+                    $showSecComp ? ThesisSupervisionHelper::formatCompensationCell($amtSec) : '',
+                ];
+
+                $lines[] = ThesisSupervisionHelper::tsvLine($cells);
+                $prevThesisId = (int) $thesis->id;
+            }
+        }
+
+        return response(implode("\n", $lines), 200, [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+        ]);
+    }
+
+    public function closeSession(Request $request, ThesisSession $thesisSession)
+    {
+        $this->ensureManager($request);
+
+        $thesisSession->closed_at = Carbon::now();
+        $thesisSession->save();
+        $thesisSession->load('schoolyear');
+
+        return response()->json([
+            'thesis_session' => $this->sessionPayload($thesisSession),
+        ]);
     }
 
     private function ensureManager(Request $request): void

@@ -606,7 +606,13 @@ onMounted(async () => {
               <h2 class="truncate text-sm font-semibold text-ink-900 sm:text-base">{{ row.name }}</h2>
               <p class="mt-0.5 text-[11px] leading-snug text-ink-500">{{ submissionSummaryText(row) }}</p>
             </div>
-            <div class="flex shrink-0 gap-1">
+            <div class="flex shrink-0 flex-wrap justify-end gap-1">
+              <RouterLink
+                :to="{ name: 'thesis-session-close', query: { thesis_session_id: String(row.id) } }"
+                class="rounded border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-900 hover:bg-teal-100"
+              >
+                Abschliessen
+              </RouterLink>
               <button
                 type="button"
                 class="rounded border border-ink-200 bg-white px-2 py-1 text-xs font-medium text-ink-800 hover:bg-ink-50"

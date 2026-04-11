@@ -12,6 +12,7 @@ const ThesisTeacherBoardView = () => import('../views/ThesisTeacherBoardView.vue
 const ThesisMyBookingsView = () => import('../views/ThesisMyBookingsView.vue')
 const ThesisSupervisionListView = () => import('../views/ThesisSupervisionListView.vue')
 const ThesisTeachersOverviewView = () => import('../views/ThesisTeachersOverviewView.vue')
+const CloseSession = () => import('../views/CloseSession.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -50,6 +51,12 @@ const router = createRouter({
       path: '/zuordnungssessions',
       name: 'thesis-sessions',
       component: ThesisSessionsAdminView,
+      meta: { requiresManager: true },
+    },
+    {
+      path: '/zuordnungssessions/abschliessen',
+      name: 'thesis-session-close',
+      component: CloseSession,
       meta: { requiresManager: true },
     },
     {
@@ -112,7 +119,8 @@ router.beforeEach(async (to) => {
     to.name === 'thesis-teacher-board' ||
     to.name === 'thesis-my-bookings' ||
     to.name === 'thesis-supervision-list' ||
-    to.name === 'thesis-teachers-overview'
+    to.name === 'thesis-teachers-overview' ||
+    to.name === 'thesis-session-close'
   ) {
     const q = to.query.thesis_session_id
     if (q == null || String(q).trim() === '') {
