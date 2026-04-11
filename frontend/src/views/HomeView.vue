@@ -93,19 +93,23 @@ async function goToEditWithCode() {
   })
 }
 
+async function loadGuestHomeData() {
+  submissionContextLoading.value = true
+  const [sc, pub] = await Promise.all([api.thesisSubmissionContext(), api.publicThesisSessionsForHome()])
+  submissionContextLoading.value = false
+  if (sc.ok) {
+    submissionContext.value = await sc.json()
+  }
+  if (pub.ok) {
+    const data = await pub.json()
+    publicSessionsForSubmit.value = data.thesis_sessions ?? []
+  }
+}
+
 onMounted(async () => {
   tokenPresent.value = !!getToken()
   if (!tokenPresent.value) {
-    submissionContextLoading.value = true
-    const [sc, pub] = await Promise.all([api.thesisSubmissionContext(), api.publicThesisSessionsForHome()])
-    submissionContextLoading.value = false
-    if (sc.ok) {
-      submissionContext.value = await sc.json()
-    }
-    if (pub.ok) {
-      const data = await pub.json()
-      publicSessionsForSubmit.value = data.thesis_sessions ?? []
-    }
+    await loadGuestHomeData()
     return
   }
   loading.value = true
@@ -138,9 +142,69 @@ function initials(t) {
 }
 
 async function logout() {
+  // #region agent log
+  fetch('http://127.0.0.1:7776/ingest/ded4bbec-a1fc-4bf2-9554-6aa40276a73f', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fcfe46' },
+    body: JSON.stringify({
+      sessionId: 'fcfe46',
+      hypothesisId: 'H1',
+      location: 'HomeView.vue:logout:entry',
+      message: 'before api.logout',
+      data: {
+        tokenPresent: tokenPresent.value,
+        hasToken: !!getToken(),
+        teacherId: teacher.value?.id ?? null,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {})
+  // #endregion
   await api.logout().catch(() => {})
   clearToken()
+  tokenPresent.value = false
+  teacher.value = null
+  loading.value = false
+  loadError.value = ''
+  boardSessions.value = null
+  boardSessionsError.value = ''
+  boardSessionsLoading.value = false
+  await loadGuestHomeData()
+  // #region agent log
+  fetch('http://127.0.0.1:7776/ingest/ded4bbec-a1fc-4bf2-9554-6aa40276a73f', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fcfe46' },
+    body: JSON.stringify({
+      sessionId: 'fcfe46',
+      runId: 'post-fix',
+      hypothesisId: 'H1',
+      location: 'HomeView.vue:logout:afterStateReset',
+      message: 'after clearToken + guest state',
+      data: {
+        tokenPresent: tokenPresent.value,
+        hasToken: !!getToken(),
+        computedIsGuest: !tokenPresent.value,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {})
+  // #endregion
   await router.replace({ name: 'home' })
+  // #region agent log
+  fetch('http://127.0.0.1:7776/ingest/ded4bbec-a1fc-4bf2-9554-6aa40276a73f', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fcfe46' },
+    body: JSON.stringify({
+      sessionId: 'fcfe46',
+      runId: 'post-fix',
+      hypothesisId: 'H3',
+      location: 'HomeView.vue:logout:afterReplace',
+      message: 'after router.replace home',
+      data: { tokenPresent: tokenPresent.value, routeName: router.currentRoute.value.name },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {})
+  // #endregion
 }
 </script>
 
