@@ -1,4 +1,4 @@
--- Kompenso SQLite (Legacy-Tabellen + schoolyears + thesis_sessions)
+-- Mentor Match / IDPA SQLite (Legacy-Tabellen + schoolyears + thesis_sessions)
 
 PRAGMA foreign_keys = ON;
 

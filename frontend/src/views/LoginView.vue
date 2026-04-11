@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api'
 import { setToken, setUser } from '../lib/auth'
+import MentorMatchLogo from '../components/MentorMatchLogo.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -42,8 +43,10 @@ async function submit() {
     <div
       class="w-full max-w-md rounded-3xl bg-white/95 p-8 shadow-card ring-1 ring-ink-200/70 backdrop-blur-sm"
     >
-      <p class="text-center text-sm font-semibold uppercase tracking-widest text-emerald-700">Kompenso</p>
-      <h1 class="mt-2 text-center text-2xl font-bold tracking-tight text-ink-900">Anmelden</h1>
+      <div class="mb-6 flex justify-center">
+        <MentorMatchLogo variant="hero" />
+      </div>
+      <h1 class="text-center text-2xl font-bold tracking-tight text-ink-900">Anmelden</h1>
       <p class="mt-2 text-center text-sm text-ink-500">
         Kürzel und Passwort
         <span class="text-ink-400">·</span>

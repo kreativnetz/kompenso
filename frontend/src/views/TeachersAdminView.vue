@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { api } from '../api'
 import { getUser, setUser } from '../lib/auth'
 
@@ -158,7 +158,7 @@ onMounted(async () => {
 
     <header class="relative border-b border-ink-200/60 bg-white/70 backdrop-blur-md">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
-        <div class="flex items-center gap-4">
+        <div class="flex flex-wrap items-center gap-3 sm:gap-4">
           <RouterLink
             to="/"
             class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-ink-600 transition hover:bg-ink-100 hover:text-ink-900"
@@ -166,7 +166,7 @@ onMounted(async () => {
             <span aria-hidden="true" class="text-lg leading-none">←</span>
             Start
           </RouterLink>
-          <div class="h-8 w-px bg-ink-200" />
+          <div class="hidden h-8 w-px bg-ink-200 sm:block" />
           <div>
             <h1 class="text-lg font-semibold tracking-tight text-ink-900 sm:text-xl">Lehrpersonen</h1>
             <p class="text-sm text-ink-500">Verwalten, filtern, Rollen zuweisen</p>

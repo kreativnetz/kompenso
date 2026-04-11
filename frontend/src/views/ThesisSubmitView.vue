@@ -321,8 +321,7 @@ async function submit() {
     <div class="relative mx-auto max-w-xl px-4 py-8 sm:px-6 sm:py-12">
       <header class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-widest text-teal-700">Kompenso</p>
-          <h1 class="mt-1 text-2xl font-bold tracking-tight text-ink-900">
+          <h1 class="text-2xl font-bold tracking-tight text-ink-900">
             {{ isEditMode ? 'Thema bearbeiten' : 'Thema einreichen' }}
           </h1>
           <p v-if="context?.thesis_session" class="mt-2 text-sm text-ink-600">
@@ -365,18 +364,18 @@ async function submit() {
           {{ successWasEdit ? 'Änderungen gespeichert' : 'Thema eingereicht' }}
         </h2>
         <p v-if="!successWasEdit" class="mt-2 text-sm text-ink-600">
-          Merke dir den Bearbeitungscode. Er erlaubt Änderungen am Thema, solange die Einreichungs- und
-          Bearbeitungsphase läuft (laut Ausschreibung).
+          Der folgende Bearbeitungscode erlaubt Änderungen am Thema, solange die Einreichungs- und
+          Bearbeitungsphase läuft.
         </p>
         <p v-else class="mt-2 text-sm text-ink-600">
-          Deine Anpassungen sind gespeichert. Der <strong>Bearbeitungscode bleibt gleich</strong>; du kannst ihn für
-          weitere Änderungen erneut verwenden, solange die Bearbeitung per Code möglich ist.
+          Ihre Anpassungen wurden gespeichert. Der <strong>Bearbeitungscode bleibt gleich</strong>; Sie können ihn für
+          weitere Änderungen erneut verwenden, solange die Bearbeitung möglich ist.
         </p>
         <p
           v-if="successPayload.requires_rector_approval"
           class="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-sm leading-snug text-sky-950 ring-1 ring-sky-200"
         >
-          <strong>Wichtig:</strong> Bei dieser Konstellation muss der Rektor / die Rektorin deine Arbeit noch
+          <strong>Wichtig:</strong> Bei dieser Konstellation muss der Rektor / die Rektorin Ihre Arbeit noch
           bewilligen. Erst danach erscheint sie auf der Themensliste für Lehrpersonen.
         </p>
         <p
@@ -415,9 +414,9 @@ async function submit() {
           class="rounded-xl bg-sky-50 px-3 py-2 text-sm leading-snug text-sky-950 ring-1 ring-sky-200"
         >
           <strong>Hinweis:</strong> Für diese Abteilung und die gewählte Anzahl Lernende ist eine
-          <strong>Bewilligung durch den Rektor / die Rektorin</strong> vorgesehen. Dein Thema wird erst nach dieser
+          <strong>Bewilligung durch den Rektor / die Rektorin</strong> vorgesehen. Ihr Thema wird erst nach dieser
           Freigabe für Lehrpersonen sichtbar.
-          <template v-if="!isEditMode"> Du erhältst trotzdem einen Bearbeitungscode.</template>
+          <template v-if="!isEditMode"> Sie erhalten trotzdem einen Bearbeitungscode.</template>
         </p>
 
         <div>

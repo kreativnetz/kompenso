@@ -1,5 +1,5 @@
-const KEY = 'kompenso_token'
-const USER_KEY = 'kompenso_user'
+const KEY = 'mentormatch_token'
+const USER_KEY = 'mentormatch_user'
 
 export function getToken() {
   return localStorage.getItem(KEY)

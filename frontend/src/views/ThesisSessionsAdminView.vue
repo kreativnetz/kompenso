@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { api } from '../api'
 import { getUser, setUser } from '../lib/auth'
 
@@ -515,7 +515,7 @@ onMounted(async () => {
   <div class="min-h-dvh bg-ink-50">
     <header class="sticky top-0 z-20 border-b border-ink-200 bg-white/95 backdrop-blur">
       <div class="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-4">
-        <div class="flex min-w-0 items-center gap-2">
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
           <RouterLink
             to="/"
             class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-600 hover:bg-ink-100 hover:text-ink-900"

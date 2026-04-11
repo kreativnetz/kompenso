@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ThesisSubmittedMail;
 use App\Models\Author;
 use App\Models\Thesis;
 use App\Models\ThesisSession;
@@ -12,6 +13,8 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class PublicThesisSubmissionController extends Controller
@@ -209,6 +212,8 @@ class PublicThesisSubmissionController extends Controller
             return $t;
         });
 
+        $this->sendThesisSubmittedMail($session, $validated, $password);
+
         return response()->json([
             'thesis' => [
                 'id' => $thesis->id,
@@ -216,6 +221,56 @@ class PublicThesisSubmissionController extends Controller
                 'requires_rector_approval' => (int) $thesis->status === 1,
             ],
         ], 201);
+    }
+
+    /**
+     * @param  array{title: string, description: string, authors: array<int, array<string, mixed>>}  $validated
+     */
+    private function sendThesisSubmittedMail(ThesisSession $session, array $validated, string $editCode): void
+    {
+        $session->loadMissing('schoolyear');
+
+        $recipientEmails = [];
+        $seen = [];
+        foreach ($validated['authors'] as $author) {
+            $normalized = strtolower(trim((string) ($author['email'] ?? '')));
+            if ($normalized === '' || isset($seen[$normalized])) {
+                continue;
+            }
+            $seen[$normalized] = true;
+            $recipientEmails[] = trim((string) $author['email']);
+        }
+
+        if ($recipientEmails === []) {
+            return;
+        }
+
+        $authorRows = [];
+        foreach ($validated['authors'] as $author) {
+            $authorRows[] = [
+                'first_name' => (string) ($author['first_name'] ?? ''),
+                'last_name' => (string) ($author['last_name'] ?? ''),
+                'class' => (string) ($author['class'] ?? ''),
+            ];
+        }
+
+        $mailable = new ThesisSubmittedMail(
+            sessionName: (string) $session->name,
+            schoolyearLabel: $session->schoolyear?->label,
+            title: $validated['title'],
+            description: $validated['description'],
+            editCode: $editCode,
+            authors: $authorRows,
+        );
+
+        try {
+            Mail::to($recipientEmails)->send($mailable);
+        } catch (\Throwable $e) {
+            Log::error('ThesisSubmittedMail failed', [
+                'message' => $e->getMessage(),
+                'thesis_session_id' => $session->id,
+            ]);
+        }
     }
 
     /**

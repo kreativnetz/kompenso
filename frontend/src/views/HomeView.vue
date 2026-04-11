@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { api } from '../api'
 import { clearToken, getToken, setUser } from '../lib/auth'
+import MentorMatchLogo from '../components/MentorMatchLogo.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -142,24 +143,6 @@ function initials(t) {
 }
 
 async function logout() {
-  // #region agent log
-  fetch('http://127.0.0.1:7776/ingest/ded4bbec-a1fc-4bf2-9554-6aa40276a73f', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fcfe46' },
-    body: JSON.stringify({
-      sessionId: 'fcfe46',
-      hypothesisId: 'H1',
-      location: 'HomeView.vue:logout:entry',
-      message: 'before api.logout',
-      data: {
-        tokenPresent: tokenPresent.value,
-        hasToken: !!getToken(),
-        teacherId: teacher.value?.id ?? null,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
   await api.logout().catch(() => {})
   clearToken()
   tokenPresent.value = false
@@ -170,41 +153,7 @@ async function logout() {
   boardSessionsError.value = ''
   boardSessionsLoading.value = false
   await loadGuestHomeData()
-  // #region agent log
-  fetch('http://127.0.0.1:7776/ingest/ded4bbec-a1fc-4bf2-9554-6aa40276a73f', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fcfe46' },
-    body: JSON.stringify({
-      sessionId: 'fcfe46',
-      runId: 'post-fix',
-      hypothesisId: 'H1',
-      location: 'HomeView.vue:logout:afterStateReset',
-      message: 'after clearToken + guest state',
-      data: {
-        tokenPresent: tokenPresent.value,
-        hasToken: !!getToken(),
-        computedIsGuest: !tokenPresent.value,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
   await router.replace({ name: 'home' })
-  // #region agent log
-  fetch('http://127.0.0.1:7776/ingest/ded4bbec-a1fc-4bf2-9554-6aa40276a73f', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fcfe46' },
-    body: JSON.stringify({
-      sessionId: 'fcfe46',
-      runId: 'post-fix',
-      hypothesisId: 'H3',
-      location: 'HomeView.vue:logout:afterReplace',
-      message: 'after router.replace home',
-      data: { tokenPresent: tokenPresent.value, routeName: router.currentRoute.value.name },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
 }
 </script>
 
@@ -217,7 +166,9 @@ async function logout() {
     <div class="relative mx-auto max-w-lg px-4 py-10 sm:px-6">
       <template v-if="isGuest">
         <header class="mb-8 text-center sm:text-left">
-          <h1 class="text-3xl font-bold tracking-tight text-ink-900">Kompenso</h1>
+          <div class="mb-4">
+            <MentorMatchLogo variant="hero" />
+          </div>
           <p class="mt-2 text-sm leading-relaxed text-ink-600">
             IDPA Manager: Lernende reichen Themen ein, Lehrpersonen verwalten Zuordnungen und
             Sitzungen.
@@ -261,7 +212,7 @@ async function logout() {
         >
           <h2 class="text-sm font-semibold text-ink-900">Thema bearbeiten</h2>
           <p class="mt-1 text-xs text-ink-600">
-            Mit dem Bearbeitungscode können Sie Ihre Einreichung in der ersten Phase der Ausschreibung anpassen.
+            Mit dem Bearbeitungscode können Sie Ihre Themeneingabe noch anpassen.
           </p>
           <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
             <div class="min-w-0 flex-1">
@@ -291,17 +242,16 @@ async function logout() {
           <p v-if="editCodeError" class="mt-2 text-sm text-rose-600">{{ editCodeError }}</p>
         </section>
 
-        <p class="mt-8 text-center text-xs text-ink-500 sm:text-left">
-          Für die Themeneingabe ist kein Login nötig. Nach dem Einreichen erhalten Sie einen Bearbeitungscode.
-        </p>
       </template>
 
       <template v-else>
-        <header class="mb-8 flex items-center justify-between gap-4">
-          <h1 class="text-2xl font-bold tracking-tight text-ink-900">Kompenso</h1>
+        <header
+          class="relative mb-8 flex min-h-[5rem] items-center justify-center px-2 py-1 sm:min-h-[5.5rem] sm:px-16"
+        >
+          <MentorMatchLogo variant="default" />
           <button
             type="button"
-            class="rounded-xl border border-ink-200 bg-white px-4 py-2 text-sm font-medium text-ink-700 shadow-sm transition hover:border-ink-300 hover:bg-ink-50"
+            class="absolute end-0 top-1/2 z-10 max-w-[calc(100%-2rem)] -translate-y-1/2 rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm font-medium text-ink-700 shadow-sm transition hover:border-ink-300 hover:bg-ink-50 sm:px-4"
             @click="logout"
           >
             Abmelden
