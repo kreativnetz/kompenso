@@ -7,12 +7,14 @@ use Carbon\Carbon;
 
 /**
  * Phasen aus thesis_sessions.phase_1_at … phase_5_at (aufsteigende Stichtage).
+ * Zusätzlich: closed_at — fachliches Ende der Session (Schreibschutz für Lernende/LP/Manager an Arbeiten).
  *
- * Index 1: [phase_1_at, phase_2_at) — nur Lernende
- * Index 2: [phase_2_at, phase_3_at) — LP Lesephase
- * Index 3: [phase_3_at, phase_4_at) — LP Buchen / Austragen
- * Index 4: [phase_4_at, phase_5_at) — u.a. Admin-Zuweisung
- * Index 5: ab phase_5_at — weiterhin Admin-Zuweisung möglich
+ * Index 0: vor phase_1_at
+ * Index 1: [phase_1_at, phase_2_at) — Lernende: Themen einreichen und per Code bearbeiten
+ * Index 2: [phase_2_at, phase_3_at) — LP Lesephase (Board)
+ * Index 3: [phase_3_at, phase_4_at) — LP: Buchungen; Austragen nur hier
+ * Index 4: [phase_4_at, phase_5_at) — LP: weiter eintragen; Austragen geschlossen
+ * Index 5: ab phase_5_at — LP-Selbsteintrag geschlossen; Board/Lesen weiter möglich
  */
 final class ThesisSessionPhase
 {
@@ -42,24 +44,52 @@ final class ThesisSessionPhase
         return $now->greaterThanOrEqualTo($session->phase_2_at);
     }
 
-    public static function allowsBooking(ThesisSession $session, Carbon $now): bool
+    /** Lernende: neue Arbeit einreichen (Phasenindex 1–3, bis vor phase_4_at). */
+    public static function allowsLearnerNewSubmission(ThesisSession $session, Carbon $now): bool
+    {
+        return $now->greaterThanOrEqualTo($session->phase_1_at) && $now->lt($session->phase_4_at);
+    }
+
+    /** Lernende: bestehende Arbeit per Bearbeitungscode ändern (nur Index 1). */
+    public static function allowsLearnerTopicEditByCode(ThesisSession $session, Carbon $now): bool
+    {
+        return $now->greaterThanOrEqualTo($session->phase_1_at) && $now->lt($session->phase_2_at);
+    }
+
+    /** LP: sich für eine Arbeit eintragen (Kalender-Phase 3 und 4). */
+    public static function allowsTeacherSelfBooking(ThesisSession $session, Carbon $now): bool
+    {
+        return $now->greaterThanOrEqualTo($session->phase_3_at) && $now->lt($session->phase_5_at);
+    }
+
+    /** LP: sich austragen (nur erstes Buchungsfenster). */
+    public static function allowsTeacherSelfWithdrawal(ThesisSession $session, Carbon $now): bool
     {
         return $now->greaterThanOrEqualTo($session->phase_3_at) && $now->lt($session->phase_4_at);
     }
 
-    public static function allowsAdminAssignment(ThesisSession $session, Carbon $now): bool
+    /**
+     * Manager: Betreuung zuweisen (zeitlich: ab LP-Board; Schreibschutz nur closed_at am Controller).
+     */
+    public static function allowsManagerSupervisionAssignment(ThesisSession $session, Carbon $now): bool
     {
-        return $now->greaterThanOrEqualTo($session->phase_4_at);
+        return self::allowsTeacherBoard($session, $now);
     }
 
-    public static function isSessionPast(ThesisSession $session, Carbon $now): bool
+    /** Session fachlich beendet (Archiv für den LP-Alltag). */
+    public static function isSessionClosed(ThesisSession $session, Carbon $now): bool
     {
-        return $now->greaterThanOrEqualTo($session->phase_5_at);
+        $c = $session->closed_at;
+        if ($c === null) {
+            return false;
+        }
+
+        return $now->greaterThanOrEqualTo($c);
     }
 
-    /** Volle Themensliste (alle Arbeiten): ab LP-Zugang bis vor Ende Phase 5. */
-    public static function isActiveForFullList(ThesisSession $session, Carbon $now): bool
+    /** Für Home-UI: Session noch „lebendig“ für die Schule (nicht archiviert). */
+    public static function isActiveForSchoolHighlight(ThesisSession $session, Carbon $now): bool
     {
-        return self::allowsTeacherBoard($session, $now) && $now->lt($session->phase_5_at);
+        return ! self::isSessionClosed($session, $now);
     }
 }

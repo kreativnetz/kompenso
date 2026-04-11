@@ -37,14 +37,13 @@ const phaseHint = computed(() => {
   if (idx === 3) {
     return 'Eintragen und Austragen sind möglich (je Rolle nur eine Person).'
   }
-  return 'Zuweisung durch Schulleitung / Administration; Buchungen sind abgeschlossen.'
+  if (idx === 4) {
+    return 'Eintragen noch möglich; Austragen für Lehrpersonen ist in dieser Phase geschlossen.'
+  }
+  return 'LP-Selbsteintrag geschlossen; Zuweisung durch Schulleitung / Administration.'
 })
 
-const listModeLabel = computed(() =>
-  board.value?.list_mode === 'mine'
-    ? 'Nur deine zugewiesenen Arbeiten (abgeschlossene Session)'
-    : 'Alle Arbeiten dieser Session',
-)
+const listModeLabel = computed(() => 'Alle Arbeiten dieser Session')
 
 function authorLabel(a) {
   const name = [a.first_name, a.last_name].filter(Boolean).join(' ').trim()
@@ -106,7 +105,7 @@ function canBookType(th, type) {
   if (!thesisAllowsSupervision(th)) {
     return false
   }
-  if (!board.value?.phase?.can_book) {
+  if (!board.value?.phase?.can_teacher_self_book) {
     return false
   }
   if (slot(th, type) != null) {
@@ -122,7 +121,7 @@ function canWithdrawType(th, type) {
   if (!thesisAllowsSupervision(th)) {
     return false
   }
-  if (!board.value?.phase?.can_book) {
+  if (!board.value?.phase?.can_teacher_self_withdraw) {
     return false
   }
   const s = slot(th, type)
@@ -137,7 +136,7 @@ function isOwnSupervisionSlot(th, type) {
 }
 
 function canAdminAssignUI() {
-  return Boolean(board.value?.phase?.can_admin_assign && board.value?.teachers?.length)
+  return Boolean(board.value?.phase?.can_manager_assign && board.value?.teachers?.length)
 }
 
 const slotTypes = [
@@ -501,7 +500,7 @@ watch(
 
                     <div
                       v-if="
-                        board.phase.can_admin_assign &&
+                        board.phase.can_manager_assign &&
                         thesisAllowsSupervision(th) &&
                         (assignOpen[`${th.id}-1`] || assignOpen[`${th.id}-2`])
                       "

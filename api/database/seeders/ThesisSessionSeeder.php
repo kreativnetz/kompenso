@@ -36,6 +36,7 @@ class ThesisSessionSeeder extends Seeder
                 'phase_3_at' => now()->addMonths(3),
                 'phase_4_at' => now()->addMonths(4),
                 'phase_5_at' => now()->addMonths(5),
+                'closed_at' => null,
                 'section_author_rules' => [],
                 'compensation' => [],
             ],

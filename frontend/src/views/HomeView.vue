@@ -14,6 +14,9 @@ const boardSessionsLoading = ref(false)
 const boardSessionsError = ref('')
 const boardSessions = ref(null)
 
+/** Öffentliche Sessions mit offener Themeneingabe (Gäste) */
+const publicSessionsForSubmit = ref([])
+
 /** Öffentlicher Themeneingabe-Kontext (nur Gäste) */
 const submissionContext = ref(null)
 const submissionContextLoading = ref(false)
@@ -27,19 +30,9 @@ const canManageTeachers = computed(() => teacher.value?.abilities?.manage_teache
 
 const boardMissingHint = computed(() => route.query.board_missing === '1')
 
-const currentAccessibleSession = computed(() => boardSessions.value?.current_accessible_session ?? null)
+const teacherSessions = computed(() => boardSessions.value?.thesis_sessions ?? [])
 
-const supervisedSessionsList = computed(() => boardSessions.value?.supervised_sessions ?? [])
-
-const supervisedSessionsOthers = computed(() => {
-  const curId = currentAccessibleSession.value?.id
-  if (curId == null) {
-    return supervisedSessionsList.value
-  }
-  return supervisedSessionsList.value.filter((s) => s.id !== curId)
-})
-
-/** Phasen 1–3 laut ThesisSessionPhase (vor phase_4_at), nur wenn eine Session offen ist */
+/** Bearbeitungscode nur im ersten Lernenden-Fenster (API: allows_edit_by_code). */
 const showLearnerEditCode = computed(() => {
   if (!isGuest.value) {
     return false
@@ -48,12 +41,12 @@ const showLearnerEditCode = computed(() => {
   if (!ctx?.thesis_session?.id) {
     return false
   }
-  const idx = ctx.phase?.phase_index
-  if (typeof idx === 'number') {
-    return idx >= 1 && idx <= 3
-  }
-  return ctx.phase?.allows_new_submission === true
+  return ctx.phase?.allows_edit_by_code === true
 })
+
+function thesisSubmitLink(sessionId) {
+  return { name: 'thesis-submit', query: { thesis_session_id: String(sessionId) } }
+}
 
 function boardLink(sessionId) {
   return { name: 'thesis-teacher-board', query: { thesis_session_id: String(sessionId) } }
@@ -104,10 +97,14 @@ onMounted(async () => {
   tokenPresent.value = !!getToken()
   if (!tokenPresent.value) {
     submissionContextLoading.value = true
-    const sc = await api.thesisSubmissionContext()
+    const [sc, pub] = await Promise.all([api.thesisSubmissionContext(), api.publicThesisSessionsForHome()])
     submissionContextLoading.value = false
     if (sc.ok) {
       submissionContext.value = await sc.json()
+    }
+    if (pub.ok) {
+      const data = await pub.json()
+      publicSessionsForSubmit.value = data.thesis_sessions ?? []
     }
     return
   }
@@ -125,7 +122,7 @@ onMounted(async () => {
 
   boardSessionsLoading.value = true
   boardSessionsError.value = ''
-  const sRes = await api.thesisSessionsSupervised()
+  const sRes = await api.thesisSessionsForTeacher()
   boardSessionsLoading.value = false
   if (sRes.ok) {
     boardSessions.value = await sRes.json()
@@ -143,7 +140,7 @@ function initials(t) {
 async function logout() {
   await api.logout().catch(() => {})
   clearToken()
-  await router.replace({ name: 'login' })
+  await router.replace({ name: 'home' })
 }
 </script>
 
@@ -158,25 +155,41 @@ async function logout() {
         <header class="mb-8 text-center sm:text-left">
           <h1 class="text-3xl font-bold tracking-tight text-ink-900">Kompenso</h1>
           <p class="mt-2 text-sm leading-relaxed text-ink-600">
-            Plattform für Abschlussarbeiten: Lernende reichen Themen ein, Lehrpersonen verwalten Zuordnungen und
+            IDPA Manager: Lernende reichen Themen ein, Lehrpersonen verwalten Zuordnungen und
             Sitzungen.
           </p>
         </header>
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <div v-if="submissionContextLoading" class="text-sm text-ink-500">Laden …</div>
+        <template v-else>
+          <div v-if="publicSessionsForSubmit.length" class="flex flex-col gap-3">
+            <RouterLink
+              v-for="ps in publicSessionsForSubmit"
+              :key="ps.id"
+              :to="thesisSubmitLink(ps.id)"
+              class="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 px-5 py-3.5 text-sm font-semibold text-white shadow-md transition hover:from-emerald-500 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
+            >
+              Thema einreichen
+              <span v-if="ps.name" class="ml-2 truncate opacity-90">({{ ps.name }})</span>
+            </RouterLink>
+          </div>
           <RouterLink
+            v-else
             to="/thema/einreichen"
             class="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 px-5 py-3.5 text-sm font-semibold text-white shadow-md transition hover:from-emerald-500 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
           >
             Thema einreichen
           </RouterLink>
-          <RouterLink
-            to="/login"
-            class="inline-flex items-center justify-center rounded-2xl border border-ink-200 bg-white px-5 py-3.5 text-sm font-semibold text-ink-800 shadow-sm transition hover:border-ink-300 hover:bg-ink-50 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-          >
-            Anmelden (Lehrpersonen)
-          </RouterLink>
-        </div>
+
+          <div class="mt-3">
+            <RouterLink
+              to="/login"
+              class="inline-flex items-center justify-center rounded-2xl border border-ink-200 bg-white px-5 py-3.5 text-sm font-semibold text-ink-800 shadow-sm transition hover:border-ink-300 hover:bg-ink-50 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+            >
+              Anmelden (Lehrpersonen)
+            </RouterLink>
+          </div>
+        </template>
 
         <section
           v-if="showLearnerEditCode"
@@ -184,7 +197,7 @@ async function logout() {
         >
           <h2 class="text-sm font-semibold text-ink-900">Thema bearbeiten</h2>
           <p class="mt-1 text-xs text-ink-600">
-            Mit dem Bearbeitungscode kannst du deine Einreichung anpassen (solange die Ausschreibung läuft).
+            Mit dem Bearbeitungscode können Sie Ihre Einreichung in der ersten Phase der Ausschreibung anpassen.
           </p>
           <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
             <div class="min-w-0 flex-1">
@@ -215,7 +228,7 @@ async function logout() {
         </section>
 
         <p class="mt-8 text-center text-xs text-ink-500 sm:text-left">
-          Für die Themeneingabe ist kein Login nötig. Nach dem Einreichen erhältst du einen Bearbeitungscode.
+          Für die Themeneingabe ist kein Login nötig. Nach dem Einreichen erhalten Sie einen Bearbeitungscode.
         </p>
       </template>
 
@@ -242,7 +255,7 @@ async function logout() {
             v-if="boardMissingHint"
             class="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200"
           >
-            Bitte öffne die Themensliste über eine Session unten (aktuell oder vergangene Zuordnung).
+            Bitte öffne die Themenliste über eine Session unten.
             <button
               type="button"
               class="ml-2 font-semibold text-amber-950 underline"
@@ -284,84 +297,101 @@ async function logout() {
           </p>
 
           <template v-else-if="boardSessions">
-            <section
-              v-if="currentAccessibleSession"
-              class="mt-6 overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-700 to-teal-800 p-5 text-white shadow-card ring-1 ring-emerald-900/20"
-            >
-              <p class="text-xs font-semibold uppercase tracking-wider text-white/80">Aktuelle Session</p>
-              <p class="mt-1 text-lg font-semibold">{{ currentAccessibleSession.name }}</p>
-              <p v-if="currentAccessibleSession.schoolyear_label" class="mt-1 text-sm text-white/85">
-                Schuljahr {{ currentAccessibleSession.schoolyear_label }}
-              </p>
-              <div class="mt-4 flex flex-wrap gap-2">
-                <RouterLink
-                  :to="boardLink(currentAccessibleSession.id)"
-                  class="inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-emerald-50"
+            <section class="mt-6 space-y-4">
+              <h2 class="text-sm font-semibold text-ink-900">Zuordnungssessions</h2>
+              <template v-if="!teacherSessions.length">
+                <p class="text-sm text-ink-600">
+                  Keine Session sichtbar (für Lehrpersonen ab Beginn der LP-Einsicht).
+                </p>
+              </template>
+              <article
+                v-for="s in teacherSessions"
+                v-else
+                :key="s.id"
+                class="overflow-hidden rounded-3xl p-5 text-ink-900 shadow-card ring-1"
+                :class="
+                  s.is_highlight
+                    ? 'bg-gradient-to-r from-emerald-700 to-teal-800 text-white ring-emerald-900/20'
+                    : 'bg-white/90 ring-ink-200/60'
+                "
+              >
+                <p
+                  class="text-xs font-semibold uppercase tracking-wider"
+                  :class="s.is_highlight ? 'text-white/80' : 'text-ink-500'"
                 >
-                  Zur Themensliste
-                </RouterLink>
-                <RouterLink
-                  :to="bookingsLink(currentAccessibleSession.id)"
-                  class="inline-flex items-center rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm backdrop-blur-sm transition hover:bg-white/20"
+                  Session
+                </p>
+                <p class="mt-1 text-lg font-semibold" :class="s.is_highlight ? 'text-white' : 'text-ink-900'">
+                  {{ s.name }}
+                </p>
+                <p
+                  v-if="s.schoolyear_label"
+                  class="mt-1 text-sm"
+                  :class="s.is_highlight ? 'text-white/85' : 'text-ink-600'"
                 >
-                  Meine Buchungen
-                </RouterLink>
-                <RouterLink
-                  v-if="canManageTeachers"
-                  :to="supervisionListLink(currentAccessibleSession.id)"
-                  class="inline-flex items-center rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm backdrop-blur-sm transition hover:bg-white/20"
-                >
-                  Betreuungsliste
-                </RouterLink>
-                <RouterLink
-                  v-if="canManageTeachers"
-                  :to="teachersOverviewLink(currentAccessibleSession.id)"
-                  class="inline-flex items-center rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm backdrop-blur-sm transition hover:bg-white/20"
-                >
-                  Lehrpersonen
-                </RouterLink>
-              </div>
-            </section>
-
-            <section
-              v-if="supervisedSessionsOthers.length"
-              class="mt-6 overflow-hidden rounded-3xl bg-white/90 p-6 shadow-card ring-1 ring-ink-200/60"
-            >
-              <h2 class="text-lg font-semibold text-ink-900">Deine Zuordnungssessions</h2>
-              <p class="mt-1 text-sm text-ink-600">
-                Sessions mit bestätigter Betreuung. Nach Abschluss siehst du nur noch deine Arbeiten.
-              </p>
-              <ul class="mt-4 space-y-3">
-                <li
-                  v-for="s in supervisedSessionsOthers"
-                  :key="s.id"
-                  class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-100 bg-ink-50/50 px-4 py-3"
-                >
-                  <div>
-                    <p class="font-medium text-ink-900">{{ s.name }}</p>
-                    <p class="text-sm text-ink-600">
-                      <span v-if="s.schoolyear_label">Schuljahr {{ s.schoolyear_label }}</span>
-                      <span v-if="s.is_past" class="ml-2 rounded-full bg-ink-200 px-2 py-0.5 text-xs text-ink-800">
-                        Abgeschlossen
-                      </span>
-                    </p>
-                  </div>
-                  <div class="flex flex-wrap gap-2">
-                    <RouterLink
-                      :to="boardLink(s.id)"
-                      class="inline-flex rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
-                    >
-                      Themensliste
-                    </RouterLink>
-                    <RouterLink
-                      :to="bookingsLink(s.id)"
-                      class="inline-flex rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
-                    >
-                      Meine Buchungen
-                    </RouterLink>
-                  </div>
-                </li>
-              </ul>
+                  Schuljahr {{ s.schoolyear_label }}
+                </p>
+                <p v-if="s.is_closed" class="mt-2">
+                  <span
+                    class="rounded-full px-2 py-0.5 text-xs font-medium"
+                    :class="
+                      s.is_highlight
+                        ? 'bg-white/20 text-white'
+                        : 'bg-ink-200 text-ink-800'
+                    "
+                  >
+                    Archiviert
+                  </span>
+                </p>
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <RouterLink
+                    :to="boardLink(s.id)"
+                    class="inline-flex items-center rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition"
+                    :class="
+                      s.is_highlight
+                        ? 'bg-white text-emerald-900 hover:bg-emerald-50'
+                        : 'border border-ink-200 bg-white text-emerald-800 hover:bg-emerald-50'
+                    "
+                  >
+                    Zur Themensliste
+                  </RouterLink>
+                  <RouterLink
+                    :to="bookingsLink(s.id)"
+                    class="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold shadow-sm backdrop-blur-sm transition"
+                    :class="
+                      s.is_highlight
+                        ? 'border-white/40 bg-white/10 text-white hover:bg-white/20'
+                        : 'border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50'
+                    "
+                  >
+                    Meine Buchungen
+                  </RouterLink>
+                  <RouterLink
+                    v-if="canManageTeachers"
+                    :to="supervisionListLink(s.id)"
+                    class="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold shadow-sm backdrop-blur-sm transition"
+                    :class="
+                      s.is_highlight
+                        ? 'border-white/40 bg-white/10 text-white hover:bg-white/20'
+                        : 'border-ink-200 bg-ink-50 text-ink-800 hover:bg-ink-100'
+                    "
+                  >
+                    Betreuungsliste
+                  </RouterLink>
+                  <RouterLink
+                    v-if="canManageTeachers"
+                    :to="teachersOverviewLink(s.id)"
+                    class="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold shadow-sm backdrop-blur-sm transition"
+                    :class="
+                      s.is_highlight
+                        ? 'border-white/40 bg-white/10 text-white hover:bg-white/20'
+                        : 'border-ink-200 bg-ink-50 text-ink-800 hover:bg-ink-100'
+                    "
+                  >
+                    Lehrpersonen
+                  </RouterLink>
+                </div>
+              </article>
             </section>
           </template>
 

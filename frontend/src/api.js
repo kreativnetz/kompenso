@@ -80,8 +80,11 @@ export const api = {
   updateThesisByCode(body) {
     return request('/public/thesis-submission/by-code', { method: 'PATCH', body })
   },
-  thesisSessionsSupervised() {
-    return request('/me/thesis-sessions/supervised')
+  thesisSessionsForTeacher() {
+    return request('/me/thesis-sessions')
+  },
+  publicThesisSessionsForHome() {
+    return request('/public/thesis-sessions')
   },
   thesisSessionTeacherBoard(sessionId) {
     return request(`/thesis-sessions/${sessionId}/teacher-board`)

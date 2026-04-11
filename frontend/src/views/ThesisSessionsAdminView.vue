@@ -10,8 +10,8 @@ const PHASE_META = [
   {
     field: 'phase_1_at',
     num: 1,
-    title: 'Lernende: Einschreiben möglich',
-    hint: 'Ab hier können sich Lernende eintragen.',
+    title: 'Lernende: Themeneingabe startet',
+    hint: 'Neueinreichungen bis vor Phase 4; Bearbeitung mit Code nur bis vor Phase 2.',
   },
   {
     field: 'phase_2_at',
@@ -22,20 +22,20 @@ const PHASE_META = [
   {
     field: 'phase_3_at',
     num: 3,
-    title: 'Lehrpersonen: sich eintragen',
-    hint: 'LP können sich für Betreuungen eintragen.',
+    title: 'Lehrpersonen: eintragen & austragen',
+    hint: 'LP können Betreuungen wählen und sich wieder austragen (bis vor Phase 4).',
   },
   {
     field: 'phase_4_at',
     num: 4,
-    title: 'Nur noch LP-Austragen',
-    hint: 'Lernende nicht mehr eintragen; LP nur noch austragen.',
+    title: 'Lehrpersonen: eintragen ohne Austragen',
+    hint: 'Austragen für LP endet; Selbsteintrag bis vor Phase 5.',
   },
   {
     field: 'phase_5_at',
     num: 5,
-    title: 'Nur Administrator / Gott',
-    hint: 'Weitere Änderungen nur mit höchster Rolle.',
+    title: 'LP-Selbsteintrag endet',
+    hint: 'Weitere Zuordnung durch Schulleitung / Administration (bis Session geschlossen).',
   },
 ]
 
@@ -68,6 +68,7 @@ function emptyFormShell() {
     phase_3_at: '',
     phase_4_at: '',
     phase_5_at: '',
+    closed_at: '',
     copy_defaults: false,
     authorMatrix: {},
     comp: emptyComp(),
@@ -360,6 +361,7 @@ function openEdit(row) {
   f.phase_3_at = row.phase_3_at || ''
   f.phase_4_at = row.phase_4_at || ''
   f.phase_5_at = row.phase_5_at || ''
+  f.closed_at = row.closed_at || ''
   f.copy_defaults = false
   f.authorMatrix = buildMatrixFromRules(f.schoolyear_id, row.section_author_rules || {})
   f.submissionSectionsOpen = submissionOpenMapFromRow(row, f.schoolyear_id)
@@ -410,6 +412,7 @@ async function submitForm() {
     phase_3_at: form.value.phase_3_at,
     phase_4_at: form.value.phase_4_at,
     phase_5_at: form.value.phase_5_at,
+    closed_at: form.value.closed_at || null,
     section_author_rules: sectionRulesPayload,
     compensation: compensationPayload,
     submission_section_keys: selectedSubmissionKeys.map((k) => String(k).toLowerCase()),
@@ -630,6 +633,13 @@ onMounted(async () => {
               </div>
             </li>
           </ol>
+          <div
+            v-if="row.closed_at"
+            class="border-t border-ink-100 px-3 py-2 text-xs text-ink-600"
+          >
+            Geschlossen:
+            <time class="font-mono font-semibold text-ink-800">{{ formatPhaseDisplay(row.closed_at) }}</time>
+          </div>
         </article>
       </div>
     </main>
@@ -830,6 +840,21 @@ onMounted(async () => {
                   </div>
                 </li>
               </ol>
+            </div>
+
+            <div class="border-t border-ink-100 pt-2">
+              <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500">
+                Session schliessen (optional)
+              </p>
+              <p class="mb-2 text-xs text-ink-500">
+                Ab diesem Zeitpunkt ist die Session archiviert; Lehrpersonen können weiter einsehen, aber nichts mehr
+                ändern.
+              </p>
+              <input
+                v-model="form.closed_at"
+                type="datetime-local"
+                class="w-full rounded border border-ink-200 bg-white px-2 py-1.5 font-mono text-xs text-ink-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
             </div>
 
             <div class="flex justify-end gap-2 border-t border-ink-100 pt-3">

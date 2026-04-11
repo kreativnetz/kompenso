@@ -19,9 +19,8 @@ class PublicThesisSubmissionController extends Controller
     /**
      * Phasenlogik (abgestimmt mit {@see \App\Services\ThesisSessionPhase} / Stichtage phase_1_at … phase_5_at):
      *
-     * - Ab phase_1_at bis vor phase_4_at: neue Themen einreichen (allowsNew; Phasenindex 1–3).
-     * - Ab phase_1_at bis vor phase_4_at: bestehende Arbeiten per Bearbeitungscode ändern (allowsEdit; gleiches Fenster wie Phasenindex 1–3).
-     * - Ab phase_4_at: keine öffentlichen Neueinreichungen mehr.
+     * - Neue Themen einreichen: bis vor phase_4_at (Phasenindex 1–3), wenn Session nicht geschlossen.
+     * - Bearbeitung per Code: nur Phasenindex 1 (bis vor phase_2_at).
      *
      * Die öffentliche Themeneingabe ist nur verfügbar, wenn für eine Session das Einschreibefenster
      * für neue Arbeiten aktiv ist (allowsNew). Es wird keine Session ohne offenes Fenster ausgewählt.
@@ -68,6 +67,41 @@ class PublicThesisSubmissionController extends Controller
             ],
             'message' => null,
         ]);
+    }
+
+    /**
+     * Sessions mit offenem Einschreibefenster (Gast-Startseite: ein Button pro Session).
+     */
+    public function listSessionsForHome()
+    {
+        $now = Carbon::now();
+        $sessions = ThesisSession::query()
+            ->with('schoolyear')
+            ->whereNotNull('schoolyear_id')
+            ->join('schoolyears', 'schoolyears.id', '=', 'thesis_sessions.schoolyear_id')
+            ->orderByDesc('schoolyears.starts_on')
+            ->orderByDesc('thesis_sessions.id')
+            ->select('thesis_sessions.*')
+            ->get();
+
+        $items = [];
+        foreach ($sessions as $session) {
+            if (ThesisSessionPhase::isSessionClosed($session, $now)) {
+                continue;
+            }
+            $flags = $this->phaseFlags($session, $now);
+            if (! $flags['allowsNew']) {
+                continue;
+            }
+            $items[] = [
+                'id' => $session->id,
+                'name' => $session->name,
+                'schoolyear_label' => $session->schoolyear?->label,
+                'phase_index' => ThesisSessionPhase::currentPhaseIndex($session, $now),
+            ];
+        }
+
+        return response()->json(['thesis_sessions' => $items]);
     }
 
     public function store(Request $request)
@@ -185,7 +219,7 @@ class PublicThesisSubmissionController extends Controller
     }
 
     /**
-     * Lädt eine Arbeit für die Bearbeitung per Code (nur wenn allowsEdit für die Session gilt und Code zur Session passt).
+     * Lädt eine Arbeit für die Bearbeitung per Code (nur wenn das Bearbeitungsfenster offen ist und Code zur Session passt).
      */
     public function thesisForEdit(Request $request)
     {
@@ -499,15 +533,16 @@ class PublicThesisSubmissionController extends Controller
      */
     private function phaseFlags(ThesisSession $session, Carbon $now): array
     {
-        $p1 = $session->phase_1_at;
-        $p4 = $session->phase_4_at;
-
-        $allowsNew = $now->greaterThanOrEqualTo($p1) && $now->lessThan($p4);
-        $allowsEdit = $allowsNew;
+        if (ThesisSessionPhase::isSessionClosed($session, $now)) {
+            return [
+                'allowsNew' => false,
+                'allowsEdit' => false,
+            ];
+        }
 
         return [
-            'allowsNew' => $allowsNew,
-            'allowsEdit' => $allowsEdit,
+            'allowsNew' => ThesisSessionPhase::allowsLearnerNewSubmission($session, $now),
+            'allowsEdit' => ThesisSessionPhase::allowsLearnerTopicEditByCode($session, $now),
         ];
     }
 

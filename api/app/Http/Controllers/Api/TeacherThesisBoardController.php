@@ -15,22 +15,25 @@ use Illuminate\Validation\ValidationException;
 
 class TeacherThesisBoardController extends Controller
 {
-    public function supervisedSessions(Request $request)
+    /**
+     * Sichtbare Zuordnungssessions für die Startseite: Manager sehen alle;
+     * normale LP nur Sessions ab Beginn LP-Board (phase_2_at).
+     */
+    public function teacherThesisSessions(Request $request)
     {
         $teacher = $request->user();
         $now = Carbon::now();
+        $isManager = (int) $teacher->status >= 3;
 
-        $sessionIds = Supervision::query()
-            ->where('supervisions.teacher', $teacher->id)
-            ->where('supervisions.status', 2)
-            ->join('thesis', 'thesis.id', '=', 'supervisions.thesis')
-            ->distinct()
-            ->pluck('thesis.session');
-
-        $supervised = ThesisSession::query()
+        $query = ThesisSession::query()
             ->with('schoolyear')
-            ->whereIn('id', $sessionIds)
-            ->get()
+            ->whereNotNull('schoolyear_id');
+
+        if (! $isManager) {
+            $query->where('phase_2_at', '<=', $now);
+        }
+
+        $sessions = $query->get()
             ->sortBy([
                 fn (ThesisSession $s) => -($s->schoolyear?->starts_on?->timestamp ?? 0),
                 fn (ThesisSession $s) => $s->name,
@@ -38,21 +41,8 @@ class TeacherThesisBoardController extends Controller
             ->values()
             ->map(fn (ThesisSession $s) => $this->sessionSummaryPayload($s, $now));
 
-        $current = ThesisSession::query()
-            ->with('schoolyear')
-            ->whereNotNull('schoolyear_id')
-            ->join('schoolyears', 'schoolyears.id', '=', 'thesis_sessions.schoolyear_id')
-            ->orderByDesc('schoolyears.starts_on')
-            ->orderByDesc('thesis_sessions.id')
-            ->select('thesis_sessions.*')
-            ->get()
-            ->first(fn (ThesisSession $s) => ThesisSessionPhase::isActiveForFullList($s, $now));
-
         return response()->json([
-            'supervised_sessions' => $supervised,
-            'current_accessible_session' => $current
-                ? $this->sessionSummaryPayload($current, $now)
-                : null,
+            'thesis_sessions' => $sessions,
         ]);
     }
 
@@ -69,9 +59,7 @@ class TeacherThesisBoardController extends Controller
 
         $phaseIndex = ThesisSessionPhase::currentPhaseIndex($thesisSession, $now);
         $allowsBoard = ThesisSessionPhase::allowsTeacherBoard($thesisSession, $now);
-        $fullList = ThesisSessionPhase::isActiveForFullList($thesisSession, $now);
-
-        $listMode = $fullList ? 'all' : 'mine';
+        $closed = ThesisSessionPhase::isSessionClosed($thesisSession, $now);
 
         $isAdmin = (int) $teacher->status >= 3;
 
@@ -84,17 +72,6 @@ class TeacherThesisBoardController extends Controller
             )
             ->with(['authors', 'supervisions.teacherModel']);
 
-        if ($listMode === 'mine') {
-            $thesisIds = Supervision::query()
-                ->where('teacher', $teacher->id)
-                ->where('status', 2)
-                ->whereIn('thesis', function ($q) use ($thesisSession) {
-                    $q->select('id')->from('thesis')->where('session', $thesisSession->id);
-                })
-                ->pluck('thesis');
-            $thesisQuery->whereIn('id', $thesisIds);
-        }
-
         $theses = $thesisQuery->get();
 
         $thesisSession->loadMissing('schoolyear');
@@ -105,12 +82,14 @@ class TeacherThesisBoardController extends Controller
 
         $grouped = $this->groupThesesBySectionAndClass($theses, $sectionsMeta);
 
-        $canBook = ThesisSessionPhase::allowsBooking($thesisSession, $now);
-        $canAdminAssign = (int) $teacher->status >= 3
-            && ThesisSessionPhase::allowsTeacherBoard($thesisSession, $now);
+        $canTeacherSelfBook = ThesisSessionPhase::allowsTeacherSelfBooking($thesisSession, $now) && ! $closed;
+        $canTeacherSelfWithdraw = ThesisSessionPhase::allowsTeacherSelfWithdrawal($thesisSession, $now) && ! $closed;
+        $canManagerAssign = (int) $teacher->status >= 3
+            && ThesisSessionPhase::allowsManagerSupervisionAssignment($thesisSession, $now)
+            && ! $closed;
 
         $teachersForAssign = null;
-        if ($canAdminAssign) {
+        if ($canManagerAssign) {
             $teachersForAssign = Teacher::query()
                 ->where('status', '>', 0)
                 ->orderBy('last_name')
@@ -128,10 +107,11 @@ class TeacherThesisBoardController extends Controller
             'phase' => [
                 'index' => $phaseIndex,
                 'allows_teacher_board' => $allowsBoard,
-                'can_book' => $canBook,
-                'can_admin_assign' => $canAdminAssign,
+                'can_teacher_self_book' => $canTeacherSelfBook,
+                'can_teacher_self_withdraw' => $canTeacherSelfWithdraw,
+                'can_manager_assign' => $canManagerAssign,
             ],
-            'list_mode' => $listMode,
+            'list_mode' => 'all',
             'sections' => $grouped,
             'teachers' => $teachersForAssign,
         ]);
@@ -376,7 +356,14 @@ class TeacherThesisBoardController extends Controller
         $teacher = $request->user();
         $now = Carbon::now();
 
-        if (! ThesisSessionPhase::allowsBooking($thesisSession, $now)) {
+        if (! $thesisSession->schoolyear_id) {
+            abort(404);
+        }
+
+        $this->assertTeacherBoardSessionAccess($request, $thesisSession, $now);
+        $this->assertSessionNotClosedForWrites($thesisSession, $now);
+
+        if (! ThesisSessionPhase::allowsTeacherSelfBooking($thesisSession, $now)) {
             throw ValidationException::withMessages([
                 'phase' => ['In dieser Phase ist kein Eintragen möglich.'],
             ]);
@@ -442,7 +429,14 @@ class TeacherThesisBoardController extends Controller
         $teacher = $request->user();
         $now = Carbon::now();
 
-        if (! ThesisSessionPhase::allowsBooking($thesisSession, $now)) {
+        if (! $thesisSession->schoolyear_id) {
+            abort(404);
+        }
+
+        $this->assertTeacherBoardSessionAccess($request, $thesisSession, $now);
+        $this->assertSessionNotClosedForWrites($thesisSession, $now);
+
+        if (! ThesisSessionPhase::allowsTeacherSelfWithdrawal($thesisSession, $now)) {
             throw ValidationException::withMessages([
                 'phase' => ['In dieser Phase ist kein Austragen möglich.'],
             ]);
@@ -477,7 +471,14 @@ class TeacherThesisBoardController extends Controller
             abort(403);
         }
 
-        if (! ThesisSessionPhase::allowsTeacherBoard($thesisSession, $now)) {
+        if (! $thesisSession->schoolyear_id) {
+            abort(404);
+        }
+
+        $this->assertTeacherBoardSessionAccess($request, $thesisSession, $now);
+        $this->assertSessionNotClosedForWrites($thesisSession, $now);
+
+        if (! ThesisSessionPhase::allowsManagerSupervisionAssignment($thesisSession, $now)) {
             throw ValidationException::withMessages([
                 'phase' => ['Zuweisung ist derzeit nicht möglich.'],
             ]);
@@ -541,6 +542,8 @@ class TeacherThesisBoardController extends Controller
     public function setThesisWorkflowStatus(Request $request, ThesisSession $thesisSession, Thesis $thesis)
     {
         $user = $request->user();
+        $now = Carbon::now();
+
         if ((int) $user->status < 3) {
             abort(403);
         }
@@ -548,6 +551,13 @@ class TeacherThesisBoardController extends Controller
         if ((int) $thesis->session !== (int) $thesisSession->id) {
             abort(404);
         }
+
+        if (! $thesisSession->schoolyear_id) {
+            abort(404);
+        }
+
+        $this->assertTeacherBoardSessionAccess($request, $thesisSession, $now);
+        $this->assertSessionNotClosedForWrites($thesisSession, $now);
 
         $data = $request->validate([
             'status' => ['required', 'integer', 'in:0,2'],
@@ -672,14 +682,15 @@ class TeacherThesisBoardController extends Controller
     private function sessionSummaryPayload(ThesisSession $session, Carbon $now): array
     {
         $session->loadMissing('schoolyear');
+        $closed = ThesisSessionPhase::isSessionClosed($session, $now);
 
         return [
             'id' => $session->id,
             'name' => $session->name,
             'schoolyear_label' => $session->schoolyear?->label,
             'phase_index' => ThesisSessionPhase::currentPhaseIndex($session, $now),
-            'is_past' => ThesisSessionPhase::isSessionPast($session, $now),
-            'is_active_for_board' => ThesisSessionPhase::isActiveForFullList($session, $now),
+            'is_closed' => $closed,
+            'is_highlight' => ThesisSessionPhase::isActiveForSchoolHighlight($session, $now),
         ];
     }
 
@@ -693,25 +704,23 @@ class TeacherThesisBoardController extends Controller
     private function assertTeacherBoardSessionAccess(Request $request, ThesisSession $thesisSession, Carbon $now): void
     {
         $teacher = $request->user();
-        $allowsBoard = ThesisSessionPhase::allowsTeacherBoard($thesisSession, $now);
-        $isPast = ThesisSessionPhase::isSessionPast($thesisSession, $now);
-
-        $hasConfirmedHere = Supervision::query()
-            ->where('teacher', $teacher->id)
-            ->where('status', 2)
-            ->whereIn('thesis', function ($q) use ($thesisSession) {
-                $q->select('id')
-                    ->from('thesis')
-                    ->where('session', $thesisSession->id);
-            })
-            ->exists();
-
-        if (! $allowsBoard) {
-            abort(403, 'Die Themensliste ist in dieser Phase noch nicht freigegeben.');
+        if ((int) $teacher->status < 1) {
+            abort(403);
         }
 
-        if ($isPast && ! $hasConfirmedHere) {
-            abort(403, 'Kein Zugriff auf diese abgeschlossene Session.');
+        if ((int) $teacher->status >= 3) {
+            return;
+        }
+
+        if (! ThesisSessionPhase::allowsTeacherBoard($thesisSession, $now)) {
+            abort(403, 'Die Themensliste ist in dieser Phase noch nicht freigegeben.');
+        }
+    }
+
+    private function assertSessionNotClosedForWrites(ThesisSession $thesisSession, Carbon $now): void
+    {
+        if (ThesisSessionPhase::isSessionClosed($thesisSession, $now)) {
+            abort(403, 'Diese Zuordnungssession ist geschlossen; Änderungen sind nicht mehr möglich.');
         }
     }
 

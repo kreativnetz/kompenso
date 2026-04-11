@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS thesis_sessions (
   phase_3_at TEXT NOT NULL,
   phase_4_at TEXT NOT NULL,
   phase_5_at TEXT NOT NULL,
+  closed_at TEXT,
   section_author_rules TEXT,
   compensation TEXT,
   submission_section_keys TEXT,
