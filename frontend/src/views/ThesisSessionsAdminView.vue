@@ -10,32 +10,32 @@ const PHASE_META = [
   {
     field: 'phase_1_at',
     num: 1,
-    title: 'Lernende: Themeneingabe startet',
-    hint: 'Neueinreichungen bis vor Phase 4; Bearbeitung mit Code nur bis vor Phase 2.',
+    title: 'Start der Themeneingabe',
+    hint: 'Lernende können Themen einreichen und bis zum Start der Lesephase bearbeiten.',
   },
   {
     field: 'phase_2_at',
     num: 2,
-    title: 'Lehrpersonen: Einsicht',
-    hint: 'LP sehen die Themen (Lesephase).',
+    title: 'Lesephase Lehrpersonen',
+    hint: 'Lehrpersonen sehen die Themen, können sich aber noch nicht eintragen.',
   },
   {
     field: 'phase_3_at',
     num: 3,
-    title: 'Lehrpersonen: eintragen & austragen',
-    hint: 'LP können Betreuungen wählen und sich wieder austragen (bis vor Phase 4).',
+    title: 'Einschreibefenster Lehrpersonen',
+    hint: 'Lehrpersonen können sich für Betreuungen ein- und austragen.',
   },
   {
     field: 'phase_4_at',
     num: 4,
-    title: 'Lehrpersonen: eintragen ohne Austragen',
-    hint: 'Austragen für LP endet; Selbsteintrag bis vor Phase 5.',
+    title: 'Endspurt',
+    hint: 'Lehrpersonen können sich nur noch ein, aber nicht mehr austragen.',
   },
   {
     field: 'phase_5_at',
     num: 5,
-    title: 'LP-Selbsteintrag endet',
-    hint: 'Weitere Zuordnung durch Schulleitung / Administration (bis Session geschlossen).',
+    title: 'Adminphase',
+    hint: 'Weitere Zuordnung nur durch Schulleitung.',
   },
 ]
 
